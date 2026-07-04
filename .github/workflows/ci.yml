@@ -34,3 +34,20 @@ jobs:
         run: uv sync --all-extras
       - name: Typecheck (basedpyright)
         run: uv run basedpyright
+
+  # Manual-only: hits the real Gemini API (one cheap generation), needs the
+  # GEMINI_API_KEY repo secret. Trigger via the Actions "Run workflow" button.
+  gemini-smoke:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync --all-extras
+      - name: Smoke test (real Gemini)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: uv run pytest -m gemini_smoke

@@ -21,7 +21,14 @@ Deviations so far:
   — code must be an installable package for `uvx --from git+<repo-url> shot`
   to work. Intent (one flat folder, prefixed filenames, no subpackages) kept.
 - The optional manual Gemini smoke CI job is deferred until `api_gemini.py`
-  exists (Stage 1) — nothing to smoke-test yet.
+  exists (Stage 1) — nothing to smoke-test yet. *Resolved in Stage 1:* smoke
+  test lives in `tests/test_gemini.py` behind the `gemini_smoke` pytest marker
+  (deselected by default), CI job `gemini-smoke` runs it on `workflow_dispatch`
+  with the `GEMINI_API_KEY` repo secret.
+- Stage 1 prompts ask for a plain white background (easy to remove in the
+  post-processing stage) instead of prompting for transparency directly —
+  whether model-native transparency works is part of the open manual smoke
+  research below.
 
 ## Naming (decided)
 
@@ -80,23 +87,24 @@ Deviations so far:
 
 ## Stage 1 — POC (CLI)
 
-- [ ] `core_persistence.py`: project-dir handling, save/load refs, samples,
+- [x] `core_persistence.py`: project-dir handling, save/load refs, samples,
       results, chosen style, run metadata
-- [ ] Backend Protocol + `api_fake.py` (fixture PNGs) + `api_gemini.py`
-- [ ] `styles.yaml` (2–3 starter styles: chibi, pixel art, ...) and
+- [x] Backend Protocol + `api_fake.py` (fixture PNGs) + `api_gemini.py`
+- [x] `styles.yaml` (2–3 starter styles: chibi, pixel art, ...) and
       `emotions.yaml` (~10–20 emotions with emoji + prompt fragment)
-- [ ] CLI subcommands mirroring pipeline stages (debuggable in isolation):
-  - [ ] `ingest` — take reference images into project
-  - [ ] `styles` — generate 2–3 sample stickers per style
-  - [ ] `select` — record chosen style
-  - [ ] `batch` — generate remaining stickers (refs + style samples as
+- [x] CLI subcommands mirroring pipeline stages (debuggable in isolation):
+  - [x] `ingest` — take reference images into project
+  - [x] `styles` — generate 2–3 sample stickers per style
+  - [x] `select` — record chosen style
+  - [x] `batch` — generate remaining stickers (refs + style samples as
         references, per-emotion prompts, idempotent: skip existing results)
-  - [ ] `status` — show project state
-- [ ] Pipeline integration test running ingest→batch end-to-end on FakeBackend
+  - [x] `status` — show project state
+- [x] Pipeline integration test running ingest→batch end-to-end on FakeBackend
 - [ ] Manual smoke test against real Gemini API, including: does it handle
       recognizable IP characters (Guts) via reference images? Does
       transparent-background prompting work? Record findings in docs/research/
-- [ ] Concurrency: one lock per project dir (matters once the bot exists;
+      (automated entry point exists: `uv run pytest -m gemini_smoke`)
+- [x] Concurrency: one lock per project dir (matters once the bot exists;
       cheap to add now)
 
 ## Follow-up (after POC)
