@@ -85,6 +85,21 @@ def test_batch_before_select_fails(tmp_path) -> None:
     assert "no style chosen" in _all_output(result)
 
 
+def test_status_missing_project_dir_fails_and_does_not_create_it(tmp_path) -> None:
+    missing = tmp_path / "typo" / "path"
+    result = runner.invoke(app, ["status", "--project", str(missing)])
+    assert result.exit_code == 1
+    assert "not found" in _all_output(result)
+    assert not missing.exists()
+
+
+def test_gemini_backend_without_api_key_fails_cleanly(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    result = runner.invoke(app, ["styles", "--project", str(tmp_path), "--backend", "gemini"])
+    assert result.exit_code == 1
+    assert "GEMINI_API_KEY" in _all_output(result)  # a ❌ message, not a pydantic traceback
+
+
 async def test_asyncio_setup_works() -> None:
     """Trivial async test proving pytest-asyncio auto mode is wired up."""
     assert True

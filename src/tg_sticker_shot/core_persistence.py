@@ -12,6 +12,7 @@ Project directory layout (flat, prefixed files):
 """
 
 import json
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -23,6 +24,11 @@ from filelock import FileLock
 _PROJECT_FILE = "project.json"
 _LOCK_FILE = ".shot.lock"
 _LOCK_TIMEOUT_SECONDS = 10
+
+# Strict filename patterns: anything matching the glob prefix but not the full
+# pattern (e.g. a stray reference_backup.png) is an error, not silently ignored.
+_REFERENCE_RE = re.compile(r"reference_(\d+)\.png")
+_SAMPLE_RE = re.compile(r"sample_(.+)_(\d+)\.png")
 
 
 class ProjectStateError(Exception):
@@ -50,21 +56,31 @@ class Project:
         source_path = Path(source)
         if not source_path.is_file():
             raise ProjectStateError(f"reference image not found: {source}")
-        index = len(self._reference_paths()) + 1
+        references = self._indexed_references()
+        index = references[-1][0] + 1 if references else 1  # max + 1, gaps never overwrite
         name = f"reference_{index}.png"
         (self._dir / name).write_bytes(source_path.read_bytes())
         return name
 
     def load_references(self) -> list[bytes]:
-        paths = self._reference_paths()
-        if not paths:
+        references = self._indexed_references()
+        if not references:
             raise ProjectStateError(
                 f"no reference images in project '{self._dir}' — run `shot ingest` first"
             )
-        return [p.read_bytes() for p in paths]
+        return [path.read_bytes() for _, path in references]
 
-    def _reference_paths(self) -> list[Path]:
-        return sorted(self._dir.glob("reference_*.png"), key=_trailing_index)
+    def _indexed_references(self) -> list[tuple[int, Path]]:
+        entries: list[tuple[int, Path]] = []
+        for path in self._dir.glob("reference_*.png"):
+            match = _REFERENCE_RE.fullmatch(path.name)
+            if match is None:
+                raise ProjectStateError(
+                    f"unexpected file '{path.name}' in project '{self._dir}' — "
+                    "expected reference_<n>.png"
+                )
+            entries.append((int(match.group(1)), path))
+        return sorted(entries)
 
     # -- style samples -------------------------------------------------------
 
@@ -74,15 +90,34 @@ class Project:
         return name
 
     def load_samples(self, style: str) -> list[bytes]:
-        paths = sorted(self._dir.glob(f"sample_{style}_*.png"), key=_trailing_index)
-        return [p.read_bytes() for p in paths]
+        return [
+            path.read_bytes()
+            for sample_style, _, path in self._indexed_samples()
+            if sample_style == style
+        ]
+
+    def has_sample(self, style: str, index: int) -> bool:
+        return (self._dir / f"sample_{style}_{index}.png").is_file()
 
     def list_sample_styles(self) -> list[str]:
-        styles = {p.stem.removeprefix("sample_").rsplit("_", 1)[0] for p in self._sample_paths()}
-        return sorted(styles)
+        return sorted({style for style, _, _ in self._indexed_samples()})
 
-    def _sample_paths(self) -> list[Path]:
-        return sorted(self._dir.glob("sample_*.png"))
+    def _indexed_samples(self) -> list[tuple[str, int, Path]]:
+        """All samples as (style, index, path), sorted by style then index.
+
+        Parses full filenames (never glob-prefix matches) so a style named
+        'chibi' can't pick up samples of a style named 'chibi_v2'.
+        """
+        entries: list[tuple[str, int, Path]] = []
+        for path in self._dir.glob("sample_*.png"):
+            match = _SAMPLE_RE.fullmatch(path.name)
+            if match is None:
+                raise ProjectStateError(
+                    f"unexpected file '{path.name}' in project '{self._dir}' — "
+                    "expected sample_<style>_<n>.png"
+                )
+            entries.append((match.group(1), int(match.group(2)), path))
+        return sorted(entries)
 
     # -- results -------------------------------------------------------------
 
@@ -140,12 +175,12 @@ class Project:
 
     def status(self) -> ProjectStatus:
         chosen = self._read_project_file().get("chosen_style")
+        samples_per_style: dict[str, int] = {}
+        for style, _, _ in self._indexed_samples():
+            samples_per_style[style] = samples_per_style.get(style, 0) + 1
         return ProjectStatus(
-            reference_count=len(self._reference_paths()),
-            samples_per_style={
-                style: sum(1 for _ in self._dir.glob(f"sample_{style}_*.png"))
-                for style in self.list_sample_styles()
-            },
+            reference_count=len(self._indexed_references()),
+            samples_per_style=samples_per_style,
             chosen_style=chosen if isinstance(chosen, str) else None,
             result_emojis=self.list_results(),
         )
@@ -157,13 +192,15 @@ class Project:
             yield
 
 
-def open_project(directory: str) -> Project:
-    """Open (creating if needed) the project directory."""
+def open_project(directory: str, *, create: bool) -> Project:
+    """Open the project directory.
+
+    create=True makes the directory (ingest); create=False fails loudly when it
+    is missing, so read-only commands like `status` never mkdir a typo'd path.
+    """
     path = Path(directory)
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    elif not path.is_dir():
+        raise ProjectStateError(f"project directory not found: {directory}")
     return Project(path)
-
-
-def _trailing_index(path: Path) -> int:
-    """Numeric sort key for names like reference_10.png (avoids 1,10,2 ordering)."""
-    return int(path.stem.rsplit("_", 1)[1])

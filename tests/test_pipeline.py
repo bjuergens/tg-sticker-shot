@@ -13,7 +13,7 @@ from tg_sticker_shot.core_styles import load_emotions, load_styles
 def project(tmp_path) -> Project:
     ref = tmp_path / "ref.png"
     ref.write_bytes(FIXTURE_PNG)
-    project = open_project(str(tmp_path / "proj"))
+    project = open_project(str(tmp_path / "proj"), create=True)
     core_pipeline.ingest(project, [str(ref)])
     return project
 
@@ -67,6 +67,37 @@ def test_styles_stage_is_idempotent(project: Project) -> None:
     assert report.generated == []
     assert sorted(report.skipped) == sorted(load_styles())
     assert len(backend.calls) == calls_before
+
+
+def test_style_samples_resume_after_partial_failure(project: Project) -> None:
+    """A backend crash mid-style must not leave the style permanently half-sampled."""
+
+    class FlakyBackend:
+        name = "flaky"
+
+        def __init__(self) -> None:
+            self.count = 0
+
+        def generate(self, refs: list[bytes], prompt: str) -> bytes:
+            self.count += 1
+            if self.count == 2:
+                raise RuntimeError("backend down")
+            return FIXTURE_PNG
+
+    with pytest.raises(RuntimeError, match="backend down"):
+        core_pipeline.generate_style_samples(project, FlakyBackend())
+
+    report = core_pipeline.generate_style_samples(project, FakeBackend())
+    assert report.skipped == []  # no style may be treated as complete yet
+    for style_name in load_styles():
+        assert len(project.load_samples(style_name)) == SAMPLES_PER_STYLE
+
+
+def test_batch_without_style_samples_fails(project: Project) -> None:
+    """Batch must not silently run without style samples (anti-drift rule)."""
+    core_pipeline.select_style(project, "chibi")
+    with pytest.raises(ProjectStateError, match="no samples for chosen style"):
+        core_pipeline.generate_batch(project, FakeBackend())
 
 
 def test_select_unknown_style_fails(project: Project) -> None:

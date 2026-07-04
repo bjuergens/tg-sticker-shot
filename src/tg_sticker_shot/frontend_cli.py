@@ -33,10 +33,18 @@ def _make_backend(backend: Backend) -> ImageBackend:
         from tg_sticker_shot.api_fake import FakeBackend
 
         return FakeBackend()
+    from pydantic import ValidationError
+
     from tg_sticker_shot.api_gemini import GeminiBackend
     from tg_sticker_shot.core_config import Settings
 
-    return GeminiBackend(Settings())  # pyright: ignore[reportCallIssue] — fields come from env
+    try:
+        settings = Settings()  # pyright: ignore[reportCallIssue] — fields come from env
+    except ValidationError as error:
+        raise BackendError(
+            "gemini backend needs the GEMINI_API_KEY environment variable"
+        ) from error
+    return GeminiBackend(settings)
 
 
 def _fail(error: Exception) -> typer.Exit:
@@ -52,8 +60,8 @@ def ingest(
     project: ProjectOpt = ".",
 ) -> None:
     """Take reference images into the project."""
-    proj = open_project(project)
     try:
+        proj = open_project(project, create=True)
         with proj.lock():
             stored = core_pipeline.ingest(proj, images)
     except ProjectStateError as error:
@@ -65,8 +73,8 @@ def ingest(
 @app.command()
 def styles(project: ProjectOpt = ".", backend: BackendOpt = Backend.gemini) -> None:
     """Generate sample stickers for every style."""
-    proj = open_project(project)
     try:
+        proj = open_project(project, create=False)
         with proj.lock():
             report = core_pipeline.generate_style_samples(proj, _make_backend(backend))
     except (ProjectStateError, BackendError) as error:
@@ -83,8 +91,8 @@ def select(
     project: ProjectOpt = ".",
 ) -> None:
     """Record the chosen style."""
-    proj = open_project(project)
     try:
+        proj = open_project(project, create=False)
         with proj.lock():
             core_pipeline.select_style(proj, style)
     except ProjectStateError as error:
@@ -95,8 +103,8 @@ def select(
 @app.command()
 def batch(project: ProjectOpt = ".", backend: BackendOpt = Backend.gemini) -> None:
     """Generate the remaining stickers (idempotent: existing results are skipped)."""
-    proj = open_project(project)
     try:
+        proj = open_project(project, create=False)
         with proj.lock():
             report = core_pipeline.generate_batch(proj, _make_backend(backend))
     except (ProjectStateError, BackendError) as error:
@@ -109,9 +117,12 @@ def batch(project: ProjectOpt = ".", backend: BackendOpt = Backend.gemini) -> No
 
 @app.command()
 def status(project: ProjectOpt = ".") -> None:
-    """Show project state."""
-    proj = open_project(project)
-    state = proj.status()
+    """Show project state (read-only: never creates the directory)."""
+    try:
+        proj = open_project(project, create=False)
+        state = proj.status()
+    except ProjectStateError as error:
+        raise _fail(error) from error
     typer.echo(f"references: {state.reference_count}")
     for style_name, count in state.samples_per_style.items():
         typer.echo(f"samples[{style_name}]: {count}")

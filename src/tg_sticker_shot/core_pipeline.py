@@ -33,15 +33,24 @@ def ingest(project: Project, image_files: list[str]) -> list[str]:
 
 
 def generate_style_samples(project: Project, backend: ImageBackend) -> StageReport:
-    """Generate SAMPLES_PER_STYLE sample stickers per style; skip styles that have them."""
+    """Generate SAMPLES_PER_STYLE sample stickers per style.
+
+    Idempotent per sample, not per style: a run that died halfway through a
+    style resumes with the missing indices instead of treating the style as done.
+    """
     refs = project.load_references()
     generated: list[str] = []
     skipped: list[str] = []
     for style in load_styles().values():
-        if project.load_samples(style.name):
+        missing = [
+            index
+            for index in range(1, SAMPLES_PER_STYLE + 1)
+            if not project.has_sample(style.name, index)
+        ]
+        if not missing:
             skipped.append(style.name)
             continue
-        for index in range(1, SAMPLES_PER_STYLE + 1):
+        for index in missing:
             image = backend.generate(refs, _sample_prompt(style))
             generated.append(project.save_sample(style.name, index, image))
     project.record_run("styles", {"backend": backend.name, "generated": len(generated)})
@@ -65,8 +74,21 @@ def generate_batch(project: Project, backend: ImageBackend) -> StageReport:
     References are always the original refs + the chosen style's samples, never
     previous results — chaining output→output causes identity drift.
     """
-    style = load_styles()[project.load_chosen_style()]
-    refs = project.load_references() + project.load_samples(style.name)
+    styles = load_styles()
+    chosen = project.load_chosen_style()
+    if chosen not in styles:
+        raise ProjectStateError(
+            f"chosen style '{chosen}' is not in styles.yaml — "
+            f"available: {', '.join(sorted(styles))}"
+        )
+    style = styles[chosen]
+    samples = project.load_samples(style.name)
+    if not samples:
+        raise ProjectStateError(
+            f"no samples for chosen style '{style.name}' — run `shot styles` first "
+            "(batch must reference style samples to keep the set consistent)"
+        )
+    refs = project.load_references() + samples
     generated: list[str] = []
     skipped: list[str] = []
     for emotion in load_emotions():
