@@ -27,6 +27,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.8",
     "basedpyright>=1.21",
+    "pytest-cov>=7.1.0",
 ]
 
 [build-system]
@@ -46,6 +47,16 @@ asyncio_mode = "auto"
 # `uv run pytest -m gemini_smoke` (needs GEMINI_API_KEY).
 addopts = "-m 'not gemini_smoke'"
 markers = ["gemini_smoke: manual smoke tests against the real Gemini API"]
+
+# Coverage is opt-in (pytest --cov), so plain `uv run pytest` stays fast.
+# CI runs with coverage and posts the markdown report to the job summary.
+[tool.coverage.run]
+source_pkgs = ["tg_sticker_shot"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+precision = 1
 
 [tool.ruff]
 line-length = 100
