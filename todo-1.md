@@ -55,20 +55,20 @@ docs/decisions.md or inline here.
 
 ## Stage 0 — Skeleton
 
-- [ ] `pyproject.toml` with uv, `src/` layout, `[project.scripts]` entry point
+- [x] `pyproject.toml` with uv, `src/` layout, `[project.scripts]` entry point
       `shot = ...` so `uvx --from git+<repo-url> shot` works
-- [ ] Optional dependency extras planned: `[bot]`, `[matting]` (empty for now)
-- [ ] typer-based `frontend_cli.py` with a hello/version command
-- [ ] pytest + pytest-asyncio setup, one trivial passing test
-- [ ] ruff (lint + format)
-- [ ] typechecker (basedpyright or mypy) — run in CI as **non-blocking** job
+- [x] Optional dependency extras planned: `[bot]`, `[matting]` (empty for now)
+- [x] typer-based `frontend_cli.py` with a hello/version command
+- [x] pytest + pytest-asyncio setup, one trivial passing test
+- [x] ruff (lint + format)
+- [x] typechecker (basedpyright or mypy) — run in CI as **non-blocking** job
       during exploration; gate later
-- [ ] GitHub Actions: uv-cached workflow → sync, ruff, pytest. No secrets
+- [x] GitHub Actions: uv-cached workflow → sync, ruff, pytest. No secrets
       needed (everything fake/mocked). Optional: manual `workflow_dispatch`
       smoke job hitting real Gemini with one cheap generation
-- [ ] `CLAUDE.md`: project intent, architecture decisions above, commands
+- [x] `CLAUDE.md`: project intent, architecture decisions above, commands
       (test/lint/run), conventions (prefix scheme, persistence rules)
-- [ ] `.gitignore`, `LICENSE` (AGPL-3), minimal `README.md`
+- [x] `.gitignore`, `LICENSE` (AGPL-3), minimal `README.md`
 
 ## Stage 1 — POC (CLI)
 
