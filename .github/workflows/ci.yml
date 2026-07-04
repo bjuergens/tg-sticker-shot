@@ -22,10 +22,15 @@ jobs:
         run: uv run ruff format --check .
       - name: Test with coverage (pytest)
         run: uv run pytest --cov
+      # Concise job summary: headline total, then only the files with gaps
+      # (--skip-covered); the full per-file view is in the HTML artifact.
       - name: Coverage report (job summary)
         run: |
-          echo "## Coverage" >> "$GITHUB_STEP_SUMMARY"
-          uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Coverage: $(uv run coverage report --format=total)%"
+            echo ""
+            uv run coverage report --format=markdown --skip-covered
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Coverage HTML report
         run: uv run coverage html
       - name: Upload coverage HTML artifact
