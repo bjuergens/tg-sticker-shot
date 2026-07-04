@@ -5,8 +5,8 @@ sticker set generator: reference images of a character in, full sticker set
 out (PNGs named by emoji). GPU work happens via image gen API (Gemini);
 locally only orchestration.
 
-Roadmap and architecture decisions: `todo-1.md`. Deviations:
-`docs/decisions.md`. Review checklist: `REVIEW.md`.
+Roadmap and architecture decisions: `docs/todo-1.md` (deviations recorded
+inline there). Review checklist: `REVIEW.md`.
 
 ## Tooling
 

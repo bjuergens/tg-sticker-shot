@@ -12,8 +12,16 @@ nothing runs locally except orchestration and (later) post-processing.
 
 This plan was made during an explorative brainstorming phase. Deviate where it
 makes sense — the architecture decisions below capture *intent* (flexibility,
-testability, simplicity), not law. Record notable deviations/decisions in
-docs/decisions.md or inline here.
+testability, simplicity), not law. Record notable deviations/decisions inline
+here.
+
+Deviations so far:
+
+- The flat folder lives at `src/tg_sticker_shot/` instead of literally `src/`
+  — code must be an installable package for `uvx --from git+<repo-url> shot`
+  to work. Intent (one flat folder, prefixed filenames, no subpackages) kept.
+- The optional manual Gemini smoke CI job is deferred until `api_gemini.py`
+  exists (Stage 1) — nothing to smoke-test yet.
 
 ## Naming (decided)
 

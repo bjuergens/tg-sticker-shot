@@ -23,7 +23,7 @@ jobs:
       - name: Test (pytest)
         run: uv run pytest
 
-  # Non-blocking during exploration (see todo-1.md Stage 0); gate later.
+  # Non-blocking during exploration (see docs/todo-1.md Stage 0); gate later.
   typecheck:
     runs-on: ubuntu-latest
     continue-on-error: true
