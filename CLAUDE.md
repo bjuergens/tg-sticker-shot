@@ -5,7 +5,7 @@ sticker set generator: reference images of a character in, full sticker set
 out (PNGs named by emoji). GPU work happens via image gen API (Gemini);
 locally only orchestration.
 
-Roadmap and architecture decisions: `docs/todo-1.md` (deviations recorded
+Roadmap and architecture decisions: `docs/todo.md` (deviations recorded
 inline there). Review checklist: `REVIEW.md`.
 
 ## Tooling
@@ -16,7 +16,7 @@ Python ≥ 3.11, `uv` for everything. Common commands:
 - `uv run pytest` — run tests
 - `uv run ruff check .` — lint
 - `uv run ruff format .` — format
-- `uv run basedpyright` — typecheck (non-blocking during exploration)
+- `uv run basedpyright` — typecheck
 - `uv run shot --help` — run the CLI from the checkout
 - `uvx --from git+https://github.com/bjuergens/tg-sticker-shot shot` — run the published tool
 

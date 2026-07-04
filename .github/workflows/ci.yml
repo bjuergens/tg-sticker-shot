@@ -23,10 +23,8 @@ jobs:
       - name: Test (pytest)
         run: uv run pytest
 
-  # Non-blocking during exploration (see docs/todo-1.md Stage 0); gate later.
   typecheck:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

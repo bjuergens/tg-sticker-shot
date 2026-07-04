@@ -69,8 +69,8 @@ Deviations so far:
 - [x] typer-based `frontend_cli.py` with a hello/version command
 - [x] pytest + pytest-asyncio setup, one trivial passing test
 - [x] ruff (lint + format)
-- [x] typechecker (basedpyright or mypy) — run in CI as **non-blocking** job
-      during exploration; gate later
+- [x] typechecker (basedpyright) — runs in CI as a **blocking** job
+      (originally planned non-blocking; gated from the start instead)
 - [x] GitHub Actions: uv-cached workflow → sync, ruff, pytest. No secrets
       needed (everything fake/mocked). Optional: manual `workflow_dispatch`
       smoke job hitting real Gemini with one cheap generation

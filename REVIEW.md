@@ -1,6 +1,6 @@
 # Code Review Checklist
 
-Red flags from Ousterhout, tailored to this codebase.
+Red flags from Ousterhout.
 
 2. **Helper exists but was bypassed** — new code duplicates an existing helper instead of calling it. Ask: "why not use the existing function?"
 3. **Parallel branches on the same type** — two functions both switch on the same enum. Ask: "could a new variant be added in one place?"

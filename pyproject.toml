@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Planned extras, intentionally empty during the skeleton stage (see docs/todo-1.md).
+# Planned extras, intentionally empty during the skeleton stage (see docs/todo.md).
 bot = []
 matting = []
 
