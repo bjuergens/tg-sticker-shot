@@ -21,7 +21,7 @@ uv sync --all-extras   # install everything into .venv
 uv run pytest          # tests
 uv run ruff check .    # lint
 uv run ruff format .   # format
-uv run basedpyright    # typecheck (non-blocking for now)
+uv run basedpyright    # typecheck
 uv run shot hello      # run the CLI
 ```
 
