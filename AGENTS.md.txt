@@ -1,26 +1,21 @@
 
-# OTT CustomJson Preprocessor
+# todo title
 
-this is a python script, that reads video files such as mkv or mpv, and generates custom json file, that can be played with opentogethertube. 
-
-this includes among other things:
-* reencoding video tracks to be playable with browser
-* extracting subtiles
-* generating thumbnails
-* estimating defaults
+todo desription
 
 
 ## Tooling
 
-Managed with `uv`. The whole tool is a single module:
-`src/ott_customjson_preprocessor/preprocessor.py`. Common commands:
+todo
+
+. Common commands:
 
 - `uv sync` — create/refresh the dev environment
 - `uv run pytest` — run tests
 - `uv run ruff check .` — lint
 - `uv run ruff format .` — format
-- `uvx oot-customjson-preprocessor` — run the published tool
-- `uv run src/ott_customjson_preprocessor/preprocessor.py` — run from the checkout
+- `uvx todoname` — run the published tool
+- `uv run src/todoname` — run from the checkout
 
 # General 
 
