@@ -1,0 +1,58 @@
+[project]
+name = "tg-sticker-shot"
+description = "Sticker Handling & Output Toolkit for Telegram. CLI: shot."
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+requires-python = ">=3.11"
+dynamic = ["version"]
+dependencies = [
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+# Planned extras, intentionally empty during the skeleton stage (see docs/todo.md).
+bot = []
+matting = []
+
+[project.scripts]
+shot = "tg_sticker_shot.frontend_cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "basedpyright>=1.21",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/tg_sticker_shot/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tg_sticker_shot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear
+]
+
+[tool.basedpyright]
+include = ["src", "tests"]
+typeCheckingMode = "standard"

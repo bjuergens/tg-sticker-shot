@@ -1,21 +1,32 @@
+# tg-sticker-shot
 
-# todo title
+**Sticker Handling & Output Toolkit for Telegram.** AI-assisted Telegram
+sticker set generator: reference images of a character in, full sticker set
+out (PNGs named by emoji). GPU work happens via image gen API (Gemini);
+locally only orchestration.
 
-todo desription
-
+Roadmap and architecture decisions: `docs/todo.md` (deviations recorded
+inline there). Review checklist: `REVIEW.md`.
 
 ## Tooling
 
-todo
+Python ≥ 3.11, `uv` for everything. Common commands:
 
-. Common commands:
-
-- `uv sync` — create/refresh the dev environment
+- `uv sync --all-extras` — create/refresh the dev environment
 - `uv run pytest` — run tests
 - `uv run ruff check .` — lint
 - `uv run ruff format .` — format
-- `uvx todoname` — run the published tool
-- `uv run src/todoname` — run from the checkout
+- `uv run basedpyright` — typecheck
+- `uv run shot --help` — run the CLI from the checkout
+- `uvx --from git+https://github.com/bjuergens/tg-sticker-shot shot` — run the published tool
+
+## Conventions
+
+- Flat package, prefixed filenames: `frontend_*`, `api_*`, `core_*` in
+  `src/tg_sticker_shot/`. No subpackages.
+- All filesystem access goes through `core_persistence.py`; only that module
+  imports `pathlib`.
+- Config/secrets via env vars (pydantic-settings), never in the repo.
 
 # General 
 

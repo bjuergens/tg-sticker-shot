@@ -12,8 +12,16 @@ nothing runs locally except orchestration and (later) post-processing.
 
 This plan was made during an explorative brainstorming phase. Deviate where it
 makes sense — the architecture decisions below capture *intent* (flexibility,
-testability, simplicity), not law. Record notable deviations/decisions in
-docs/decisions.md or inline here.
+testability, simplicity), not law. Record notable deviations/decisions inline
+here.
+
+Deviations so far:
+
+- The flat folder lives at `src/tg_sticker_shot/` instead of literally `src/`
+  — code must be an installable package for `uvx --from git+<repo-url> shot`
+  to work. Intent (one flat folder, prefixed filenames, no subpackages) kept.
+- The optional manual Gemini smoke CI job is deferred until `api_gemini.py`
+  exists (Stage 1) — nothing to smoke-test yet.
 
 ## Naming (decided)
 
@@ -55,20 +63,20 @@ docs/decisions.md or inline here.
 
 ## Stage 0 — Skeleton
 
-- [ ] `pyproject.toml` with uv, `src/` layout, `[project.scripts]` entry point
+- [x] `pyproject.toml` with uv, `src/` layout, `[project.scripts]` entry point
       `shot = ...` so `uvx --from git+<repo-url> shot` works
-- [ ] Optional dependency extras planned: `[bot]`, `[matting]` (empty for now)
-- [ ] typer-based `frontend_cli.py` with a hello/version command
-- [ ] pytest + pytest-asyncio setup, one trivial passing test
-- [ ] ruff (lint + format)
-- [ ] typechecker (basedpyright or mypy) — run in CI as **non-blocking** job
-      during exploration; gate later
-- [ ] GitHub Actions: uv-cached workflow → sync, ruff, pytest. No secrets
+- [x] Optional dependency extras planned: `[bot]`, `[matting]` (empty for now)
+- [x] typer-based `frontend_cli.py` with a hello/version command
+- [x] pytest + pytest-asyncio setup, one trivial passing test
+- [x] ruff (lint + format)
+- [x] typechecker (basedpyright) — runs in CI as a **blocking** job
+      (originally planned non-blocking; gated from the start instead)
+- [x] GitHub Actions: uv-cached workflow → sync, ruff, pytest. No secrets
       needed (everything fake/mocked). Optional: manual `workflow_dispatch`
       smoke job hitting real Gemini with one cheap generation
-- [ ] `CLAUDE.md`: project intent, architecture decisions above, commands
+- [x] `CLAUDE.md`: project intent, architecture decisions above, commands
       (test/lint/run), conventions (prefix scheme, persistence rules)
-- [ ] `.gitignore`, `LICENSE` (AGPL-3), minimal `README.md`
+- [x] `.gitignore`, `LICENSE` (AGPL-3), minimal `README.md`
 
 ## Stage 1 — POC (CLI)
 
