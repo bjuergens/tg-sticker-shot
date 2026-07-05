@@ -22,31 +22,22 @@ Python ≥ 3.11, `uv` for everything. Common commands:
 
 ### Running the real pipeline (agent test drive)
 
-When the user supplies reference image(s) and a Gemini API key in chat and
-asks to test the pipeline:
+When the user supplies reference image(s) and a Gemini API key in chat:
 
-- **Key**: pass it inline per command (`GEMINI_API_KEY=... uv run shot ...`).
-  Never write it to a file, the repo, or shell config. Remind the user to
-  rotate it afterward — a key pasted in chat counts as exposed.
-- **Project dir**: use the session scratchpad (e.g. `$SCRATCHPAD/<name>/proj`),
-  never a directory inside the repo — generated images must not end up in git.
-- **Source images**: uploads land as-is; `ingest` stores bytes verbatim and
-  the backend labels everything `image/png`, so convert non-PNG uploads first:
-  `uv run --with pillow python -c "from PIL import Image; Image.open(SRC).convert('RGB').save(DST_PNG)"`
-- **Run** (default params, default model; ~15 paid generations ≈ $0.60):
-  1. `uv run shot ingest <sources...> --project $PROJ`
-  2. `GEMINI_API_KEY=... uv run shot refs "<style guide>" --project $PROJ --backend gemini`
-  3. `GEMINI_API_KEY=... uv run shot batch --project $PROJ --backend gemini`
-  4. `GEMINI_API_KEY=... uv run shot review --project $PROJ --backend gemini`
-  5. `uv run shot status --project $PROJ`
-- **Show the output**: view images yourself with the `Read` tool (spot-check
-  refs before paying for batch); deliver them to the user with `SendUserFile`
-  (refs + all `result_*.png`).
-- Errors abort a stage loudly by design; report the exact error and stop —
-  don't burn more paid calls retrying. `refs`/`batch` are idempotent, so a
-  fixed rerun resumes where it died.
-- Record notable findings in `docs/research/` (see
-  `gemini-smoke-2026-07.md` for the shape).
+- Key inline per command only (`GEMINI_API_KEY=... uv run shot ...`), never
+  in a file or the repo; remind the user to rotate it afterward.
+- Project dir in the session scratchpad, never inside the repo.
+- Convert non-PNG uploads first (`ingest` stores bytes verbatim, the backend
+  labels everything `image/png`): `uv run --with pillow python -c "..."`.
+- Run with defaults (~15 paid generations ≈ $0.60):
+  `ingest <sources...>` → `refs "<style guide>" --backend gemini` →
+  `batch --backend gemini` → `review --backend gemini` → `status`,
+  each with `--project $PROJ`.
+- Spot-check the refs with `Read` before paying for batch; deliver refs +
+  `result_*.png` to the user with `SendUserFile`.
+- Errors abort a stage loudly by design — report and stop, don't retry paid
+  calls; `refs`/`batch` are idempotent and resume on rerun. Notable findings
+  go to `docs/research/`.
 
 ## Conventions
 
