@@ -124,7 +124,7 @@ Deviations so far:
 
 ## Follow-up (after POC)
 
-- [ ] **cli qol**: default work folder should be "work", with cli option for overwrite. all env vars, except secrets should be cli args only .  logging and progress: long running commands, should lock what they are doing, maybe info printing progress every couple seconds? or just after each phase or something, so user knows it isnt frozen.  
+- [ ] **cli qol**: default work folder should be "work", with cli option for overwrite. all env vars, except secrets should be cli args only .  logging and progress: long running commands, should lock what they are doing, maybe info printing progress every couple seconds? or just after each phase or something, so user knows it isnt frozen.  api calls should be run in paralell per default, if convinient (e.g. batch). 
 - [ ] **Post-processing** (`post` stage): transparency (prefer model-native;
       rembg via `[matting]` extra only as fallback — pulls heavy onnxruntime),
       white outline via alpha dilation (opencv-python-headless), resize to
