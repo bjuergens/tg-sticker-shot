@@ -57,7 +57,8 @@ REF_SPECS: dict[str, list[str]] = {
 REF_BOILERPLATE = (
     "Character reference image of the character shown in the input images, "
     "for use as a drawing reference for stickers. "
-    "Keep the character's identity, outfit and colors consistent with the input images. "
+    "Keep the character's identity, outfit, colors and any signature held items "
+    "consistent with the input images. "
     "Single centered character, plain solid white background, no text, no watermark."
 )
 
