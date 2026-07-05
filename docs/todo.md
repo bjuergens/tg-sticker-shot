@@ -127,10 +127,12 @@ Deviations so far:
         references, per-emotion prompts, idempotent: skip existing results)
   - [x] `status` — show project state
 - [x] Pipeline integration test running ingest→batch end-to-end on FakeBackend
-- [ ] Manual smoke test against real Gemini API, including: does it handle
-      recognizable IP characters (Guts) via reference images? Does
-      transparent-background prompting work? Record findings in docs/research/
-      (automated entry point exists: `uv run pytest -m gemini_smoke`)
+- [x] Manual smoke test against real Gemini API — full pipeline incl. review
+      ran clean on a real character sheet; findings (identity consistency,
+      white-background quality, style-guide-vs-theme caveat) in
+      `docs/research/gemini-smoke-2026-07.md`. IP-character question still
+      open (source was obscure); automated entry point:
+      `uv run pytest -m gemini_smoke`
 - [x] Concurrency: one lock per project dir (matters once the bot exists;
       cheap to add now)
 
