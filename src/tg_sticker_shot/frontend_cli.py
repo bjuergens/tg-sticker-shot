@@ -1,7 +1,7 @@
 """Typer-based CLI. Entry point: `shot` (see [project.scripts] in pyproject.toml).
 
 Subcommands mirror the pipeline stages so each is debuggable in isolation:
-ingest → style → batch → status.
+ingest → refs → batch → status.
 """
 
 from enum import StrEnum
@@ -24,8 +24,19 @@ class Backend(StrEnum):
     gemini = "gemini"
 
 
+class Framing(StrEnum):
+    bust = "bust"
+    half = "half"
+    full = "full"
+    vary = "vary"
+
+
 ProjectOpt = Annotated[str, typer.Option("--project", help="Project directory.")]
 BackendOpt = Annotated[Backend, typer.Option("--backend", help="Image generation backend.")]
+FramingOpt = Annotated[
+    Framing,
+    typer.Option("--framing", help="Framing of the generated refs; vary = one of each."),
+]
 
 
 def _make_backend(backend: Backend) -> ImageBackend:
@@ -55,11 +66,11 @@ def _fail(error: Exception) -> typer.Exit:
 @app.command()
 def ingest(
     images: Annotated[
-        list[str], typer.Argument(help="Reference image files to copy into the project.")
+        list[str], typer.Argument(help="Source image files to copy into the project.")
     ],
     project: ProjectOpt = ".",
 ) -> None:
-    """Take reference images into the project."""
+    """Take user-provided source images into the project."""
     try:
         proj = open_project(project, create=True)
         with proj.lock():
@@ -71,19 +82,22 @@ def ingest(
 
 
 @app.command()
-def style(
+def refs(
     style_guide: Annotated[
         str,
         typer.Argument(help="Free-text style description, e.g. 'chibi, bold outlines'."),
     ],
     project: ProjectOpt = ".",
     backend: BackendOpt = Backend.gemini,
+    framing: FramingOpt = Framing.vary,
 ) -> None:
-    """Generate sample stickers in the given style (records the style guide)."""
+    """Generate the canonical reference images from the sources (records style + framing)."""
     try:
         proj = open_project(project, create=False)
         with proj.lock():
-            report = core_pipeline.generate_style_samples(proj, _make_backend(backend), style_guide)
+            report = core_pipeline.generate_refs(
+                proj, _make_backend(backend), style_guide, framing.value
+            )
     except (ProjectStateError, BackendError) as error:
         raise _fail(error) from error
     for name in report.generated:
@@ -115,8 +129,8 @@ def status(project: ProjectOpt = ".") -> None:
         state = proj.status()
     except ProjectStateError as error:
         raise _fail(error) from error
-    typer.echo(f"references: {state.reference_count}")
-    typer.echo(f"samples: {state.sample_count}")
+    typer.echo(f"sources: {state.source_count}")
+    typer.echo(f"refs: {state.ref_count}")
     typer.echo(f"style guide: {state.style_guide or '(none)'}")
     typer.echo(f"results: {len(state.result_emojis)} {' '.join(state.result_emojis)}".rstrip())
     missing = core_pipeline.missing_emotions(proj)

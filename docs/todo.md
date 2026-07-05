@@ -35,6 +35,14 @@ Deviations so far:
   the reference + sample images carry the style and batch uses a hardcoded
   prompt with no style text. `emotions.yaml` stays (`core_emotions.py`).
   Predefined multi-style sampling can return later as UI sugar for the bot.
+- *Two-stage ref architecture (2026-07):* `shot style` became `shot refs`:
+  user uploads are *sources* (`source_<n>.png`), the refs stage distills
+  them + the style guide into generated canonical *refs*
+  (`ref_<framing>_<n>.png`), and batch generates stickers from the refs
+  alone. Reason: the model copies the composition of its input images, so
+  same-pose anchors froze every sticker into one pose; framing-varied refs
+  fix it. `--framing bust|half|full|vary` is recorded in project.json;
+  changing it mid-project is an error like the style guide.
 
 ## Naming (decided)
 
@@ -129,6 +137,11 @@ Deviations so far:
         CI-friendly). Skip real-Telegram e2e or make it manual-only.
 - [ ] **Pack/export** for CLI users: manifest + instructions (or bot-assisted
       upload)
+- [ ] **`shot redo <emoji>`** — delete + regenerate one result (workaround
+      today: delete the file, rerun batch). Maybe also for refs.
+- [ ] **Optional AI quality review** — vision model rates the set (identity
+      consistency, emotion legibility at sticker size, artifacts) and
+      suggests re-rolls for `shot redo`.
 - [ ] Consider fal.ai (or second backend) as alternative — should be one new
       `api_*.py` file if the Protocol held up
 - [ ] Consider pivot: emoji filenames → semantic names + manifest.json
