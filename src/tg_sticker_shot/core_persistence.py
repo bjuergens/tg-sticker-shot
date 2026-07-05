@@ -1,14 +1,19 @@
 """All filesystem access for project directories lives here.
 
-Only this module imports pathlib. The API speaks domain terms (references,
-samples, results, chosen style) and hands out bytes/str, never Path objects.
+Only this module imports pathlib. The API speaks domain terms (sources,
+refs, results, chosen style) and hands out bytes/str, never Path objects.
+
+Image classes: *sources* are the user-provided input images (ingest);
+*refs* are the generated canonical reference images that carry identity +
+style (refs stage); *results* are the final stickers (batch, generated
+from refs only — sources are never referenced after the refs stage).
 
 Project directory layout (flat, prefixed files):
-    reference_<n>.png
-    sample_<n>.png
+    source_<n>.png            (user-provided input images)
+    ref_<framing>_<n>.png     (generated canonical reference images)
     result_<emoji>.png
-    project.json          (style guide + run metadata)
-    .shot.lock            (inter-process lock)
+    project.json              (style guide, framing + run metadata)
+    .shot.lock                (inter-process lock)
 """
 
 import json
@@ -25,10 +30,13 @@ _PROJECT_FILE = "project.json"
 _LOCK_FILE = ".shot.lock"
 _LOCK_TIMEOUT_SECONDS = 10
 
+# Ref framings, in canonical order (load_refs returns bust refs first).
+FRAMINGS = ("bust", "half", "full")
+
 # Strict filename patterns: anything matching the glob prefix but not the full
-# pattern (e.g. a stray reference_backup.png) is an error, not silently ignored.
-_REFERENCE_RE = re.compile(r"reference_(\d+)\.png")
-_SAMPLE_RE = re.compile(r"sample_(\d+)\.png")
+# pattern (e.g. a stray source_backup.png) is an error, not silently ignored.
+_SOURCE_RE = re.compile(r"source_(\d+)\.png")
+_REF_RE = re.compile(rf"ref_({'|'.join(FRAMINGS)})_(\d+)\.png")
 
 
 class ProjectStateError(Exception):
@@ -37,8 +45,8 @@ class ProjectStateError(Exception):
 
 @dataclass(frozen=True)
 class ProjectStatus:
-    reference_count: int
-    sample_count: int
+    source_count: int
+    ref_count: int
     style_guide: str | None
     result_emojis: list[str]
 
@@ -49,62 +57,64 @@ class Project:
 
     _dir: Path
 
-    # -- references ----------------------------------------------------------
+    # -- sources (user-provided input images) ---------------------------------
 
-    def add_reference_from_file(self, source: str) -> str:
-        """Copy an external image file in as the next reference_<n>.png."""
+    def add_source_from_file(self, source: str) -> str:
+        """Copy an external image file in as the next source_<n>.png."""
         source_path = Path(source)
         if not source_path.is_file():
-            raise ProjectStateError(f"reference image not found: {source}")
-        references = self._indexed_references()
-        index = references[-1][0] + 1 if references else 1  # max + 1, gaps never overwrite
-        name = f"reference_{index}.png"
+            raise ProjectStateError(f"source image not found: {source}")
+        sources = self._indexed_sources()
+        index = sources[-1][0] + 1 if sources else 1  # max + 1, gaps never overwrite
+        name = f"source_{index}.png"
         (self._dir / name).write_bytes(source_path.read_bytes())
         return name
 
-    def load_references(self) -> list[bytes]:
-        references = self._indexed_references()
-        if not references:
+    def load_sources(self) -> list[bytes]:
+        sources = self._indexed_sources()
+        if not sources:
             raise ProjectStateError(
-                f"no reference images in project '{self._dir}' — run `shot ingest` first"
+                f"no source images in project '{self._dir}' — run `shot ingest` first"
             )
-        return [path.read_bytes() for _, path in references]
+        return [path.read_bytes() for _, path in sources]
 
-    def _indexed_references(self) -> list[tuple[int, Path]]:
+    def _indexed_sources(self) -> list[tuple[int, Path]]:
         entries: list[tuple[int, Path]] = []
-        for path in self._dir.glob("reference_*.png"):
-            match = _REFERENCE_RE.fullmatch(path.name)
+        for path in self._dir.glob("source_*.png"):
+            match = _SOURCE_RE.fullmatch(path.name)
             if match is None:
                 raise ProjectStateError(
                     f"unexpected file '{path.name}' in project '{self._dir}' — "
-                    "expected reference_<n>.png"
+                    "expected source_<n>.png"
                 )
             entries.append((int(match.group(1)), path))
         return sorted(entries)
 
-    # -- style samples -------------------------------------------------------
+    # -- refs (generated canonical reference images) ---------------------------
 
-    def save_sample(self, index: int, data: bytes) -> str:
-        name = f"sample_{index}.png"
+    def save_ref(self, framing: str, index: int, data: bytes) -> str:
+        if framing not in FRAMINGS:
+            raise ProjectStateError(f"unknown framing '{framing}' — expected one of {FRAMINGS}")
+        name = f"ref_{framing}_{index}.png"
         (self._dir / name).write_bytes(data)
         return name
 
-    def load_samples(self) -> list[bytes]:
-        return [path.read_bytes() for _, path in self._indexed_samples()]
+    def load_refs(self) -> list[bytes]:
+        return [path.read_bytes() for _, _, path in self._indexed_refs()]
 
-    def has_sample(self, index: int) -> bool:
-        return (self._dir / f"sample_{index}.png").is_file()
+    def has_ref(self, framing: str, index: int) -> bool:
+        return (self._dir / f"ref_{framing}_{index}.png").is_file()
 
-    def _indexed_samples(self) -> list[tuple[int, Path]]:
-        entries: list[tuple[int, Path]] = []
-        for path in self._dir.glob("sample_*.png"):
-            match = _SAMPLE_RE.fullmatch(path.name)
+    def _indexed_refs(self) -> list[tuple[int, int, Path]]:
+        entries: list[tuple[int, int, Path]] = []
+        for path in self._dir.glob("ref_*.png"):
+            match = _REF_RE.fullmatch(path.name)
             if match is None:
                 raise ProjectStateError(
                     f"unexpected file '{path.name}' in project '{self._dir}' — "
-                    "expected sample_<n>.png"
+                    "expected ref_<framing>_<n>.png"
                 )
-            entries.append((int(match.group(1)), path))
+            entries.append((FRAMINGS.index(match.group(1)), int(match.group(2)), path))
         return sorted(entries)
 
     # -- results -------------------------------------------------------------
@@ -120,7 +130,7 @@ class Project:
     def list_results(self) -> list[str]:
         return sorted(p.stem.removeprefix("result_") for p in self._dir.glob("result_*.png"))
 
-    # -- style guide / run metadata (project.json) -----------------------------
+    # -- style guide / framing / run metadata (project.json) -------------------
 
     def save_style_guide(self, style_guide: str) -> None:
         self._update_project_file(style_guide=style_guide)
@@ -128,6 +138,13 @@ class Project:
     def load_style_guide_or_none(self) -> str | None:
         style_guide = self._read_project_file().get("style_guide")
         return style_guide if isinstance(style_guide, str) else None
+
+    def save_framing(self, framing: str) -> None:
+        self._update_project_file(framing=framing)
+
+    def load_framing_or_none(self) -> str | None:
+        framing = self._read_project_file().get("framing")
+        return framing if isinstance(framing, str) else None
 
     def record_run(self, stage: str, metadata: dict[str, object]) -> None:
         data = self._read_project_file()
@@ -159,8 +176,8 @@ class Project:
 
     def status(self) -> ProjectStatus:
         return ProjectStatus(
-            reference_count=len(self._indexed_references()),
-            sample_count=len(self._indexed_samples()),
+            source_count=len(self._indexed_sources()),
+            ref_count=len(self._indexed_refs()),
             style_guide=self.load_style_guide_or_none(),
             result_emojis=self.list_results(),
         )

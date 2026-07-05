@@ -35,6 +35,18 @@ Deviations so far:
   the reference + sample images carry the style and batch uses a hardcoded
   prompt with no style text. `emotions.yaml` stays (`core_emotions.py`).
   Predefined multi-style sampling can return later as UI sugar for the bot.
+- *Two-stage ref architecture (after manual Gemini experiments, 2026-07):*
+  `shot style` became `shot refs`, and the image classes were renamed to
+  match their roles: user uploads are *sources* (`source_<n>.png`), the refs
+  stage distills them + the style guide into generated canonical *refs*
+  (`ref_<framing>_<n>.png`), and batch generates every sticker from the refs
+  alone — sources are never referenced after the refs stage. Rationale: the
+  model anchors hard on the composition of its input images (experiments:
+  same-pose anchors reproduced the pose in ~⅔ of generations, prompt-only
+  countermeasures were unreliable; framing-varied refs fixed it). Ref
+  framing is user-selectable via `shot refs --framing bust|half|full|vary`
+  (2/3/4 refs, `vary` = one of each; recorded in project.json, changing it
+  mid-project is an error like the style guide).
 
 ## Naming (decided)
 
@@ -129,6 +141,15 @@ Deviations so far:
         CI-friendly). Skip real-Telegram e2e or make it manual-only.
 - [ ] **Pack/export** for CLI users: manifest + instructions (or bot-assisted
       upload)
+- [ ] **`shot redo <emoji>`** — re-roll a single bad result (delete + regenerate
+      one sticker; batch is idempotent so today's workaround is deleting the
+      file by hand). Maybe also `shot redo ref_bust_1` for refs.
+- [ ] **Optional AI quality-review step** — send the finished set to a vision
+      model and get per-sticker ratings: identity consistency across the set,
+      emotion legibility ("emojipathos" — does 😱 read as 😱 at 150px?),
+      technical quality (single character, clean white background, no
+      letterboxing/artifacts). Output: a report + re-roll suggestions that
+      `shot redo` can consume.
 - [ ] Consider fal.ai (or second backend) as alternative — should be one new
       `api_*.py` file if the Protocol held up
 - [ ] Consider pivot: emoji filenames → semantic names + manifest.json

@@ -5,18 +5,18 @@ import pytest
 from tg_sticker_shot import core_pipeline
 from tg_sticker_shot.api_fake import FIXTURE_PNG, FakeBackend
 from tg_sticker_shot.core_emotions import load_emotions
-from tg_sticker_shot.core_persistence import Project, ProjectStateError, open_project
-from tg_sticker_shot.core_pipeline import SAMPLE_COUNT, STYLE_FROM_SAMPLES
+from tg_sticker_shot.core_persistence import FRAMINGS, Project, ProjectStateError, open_project
+from tg_sticker_shot.core_pipeline import REF_SPECS, STYLE_FROM_REFS, VARY
 
 STYLE_GUIDE = "chibi, super-deformed, bold outlines"
 
 
 @pytest.fixture
 def project(tmp_path) -> Project:
-    ref = tmp_path / "ref.png"
-    ref.write_bytes(FIXTURE_PNG)
+    source = tmp_path / "source.png"
+    source.write_bytes(FIXTURE_PNG)
     project = open_project(str(tmp_path / "proj"), create=True)
-    core_pipeline.ingest(project, [str(ref)])
+    core_pipeline.ingest(project, [str(source)])
     return project
 
 
@@ -24,33 +24,46 @@ def test_full_pipeline(project: Project) -> None:
     backend = FakeBackend()
     emotions = load_emotions()
 
-    sample_report = core_pipeline.generate_style_samples(project, backend, STYLE_GUIDE)
-    assert len(sample_report.generated) == SAMPLE_COUNT
-    assert sample_report.skipped == []
-    assert len(project.load_samples()) == SAMPLE_COUNT
-    # Sample prompts carry the user-supplied style guide.
+    ref_report = core_pipeline.generate_refs(project, backend, STYLE_GUIDE, VARY)
+    assert ref_report.generated == ["ref_bust_1.png", "ref_half_1.png", "ref_full_1.png"]
+    assert ref_report.skipped == []
+    assert len(project.load_refs()) == len(FRAMINGS)
+    # Ref prompts carry the user-supplied style guide; refs see the sources only.
     assert all(STYLE_GUIDE in prompt for _, prompt in backend.calls)
+    assert {count for count, _ in backend.calls} == {1}
 
     batch_report = core_pipeline.generate_batch(project, backend)
     assert len(batch_report.generated) == len(emotions)
     for emotion in emotions:
         assert project.has_result(emotion.emoji)
 
-    # Batch prompts use the hardcoded style-from-samples text, not the guide.
+    # Batch prompts use the hardcoded style-from-refs text, not the guide.
     batch_prompts = [prompt for _, prompt in backend.calls[-len(emotions) :]]
-    assert all(STYLE_FROM_SAMPLES in prompt for prompt in batch_prompts)
+    assert all(STYLE_FROM_REFS in prompt for prompt in batch_prompts)
     assert all(STYLE_GUIDE not in prompt for prompt in batch_prompts)
     for emotion, prompt in zip(emotions, batch_prompts, strict=True):
         assert emotion.prompt_fragment in prompt
 
-    # Batch references = original refs + samples, never previous results.
+    # Batch references = the generated refs only, never sources or previous results.
     ref_counts = {count for count, _ in backend.calls[-len(emotions) :]}
-    assert ref_counts == {1 + SAMPLE_COUNT}
+    assert ref_counts == {len(FRAMINGS)}
+
+
+@pytest.mark.parametrize("framing", FRAMINGS)
+def test_single_framing_generates_all_its_specs(project: Project, framing: str) -> None:
+    backend = FakeBackend()
+    report = core_pipeline.generate_refs(project, backend, STYLE_GUIDE, framing)
+    assert report.generated == [
+        f"ref_{framing}_{index}.png" for index in range(1, len(REF_SPECS[framing]) + 1)
+    ]
+    # Every spec's composition text ends up in its prompt, in order.
+    for spec, (_, prompt) in zip(REF_SPECS[framing], backend.calls, strict=True):
+        assert spec in prompt
 
 
 def test_batch_is_idempotent(project: Project) -> None:
     backend = FakeBackend()
-    core_pipeline.generate_style_samples(project, backend, STYLE_GUIDE)
+    core_pipeline.generate_refs(project, backend, STYLE_GUIDE, VARY)
     core_pipeline.generate_batch(project, backend)
 
     calls_before = len(backend.calls)
@@ -60,18 +73,18 @@ def test_batch_is_idempotent(project: Project) -> None:
     assert len(backend.calls) == calls_before
 
 
-def test_style_stage_is_idempotent(project: Project) -> None:
+def test_refs_stage_is_idempotent(project: Project) -> None:
     backend = FakeBackend()
-    core_pipeline.generate_style_samples(project, backend, STYLE_GUIDE)
+    core_pipeline.generate_refs(project, backend, STYLE_GUIDE, VARY)
     calls_before = len(backend.calls)
-    report = core_pipeline.generate_style_samples(project, backend, STYLE_GUIDE)
+    report = core_pipeline.generate_refs(project, backend, STYLE_GUIDE, VARY)
     assert report.generated == []
-    assert len(report.skipped) == SAMPLE_COUNT
+    assert len(report.skipped) == len(FRAMINGS)
     assert len(backend.calls) == calls_before
 
 
-def test_style_samples_resume_after_partial_failure(project: Project) -> None:
-    """A backend crash mid-run must not leave the project permanently half-sampled."""
+def test_refs_resume_after_partial_failure(project: Project) -> None:
+    """A backend crash mid-run must not leave the project permanently half-reffed."""
 
     class FlakyBackend:
         name = "flaky"
@@ -86,19 +99,30 @@ def test_style_samples_resume_after_partial_failure(project: Project) -> None:
             return FIXTURE_PNG
 
     with pytest.raises(RuntimeError, match="backend down"):
-        core_pipeline.generate_style_samples(project, FlakyBackend(), STYLE_GUIDE)
+        core_pipeline.generate_refs(project, FlakyBackend(), STYLE_GUIDE, VARY)
 
-    core_pipeline.generate_style_samples(project, FakeBackend(), STYLE_GUIDE)
-    assert len(project.load_samples()) == SAMPLE_COUNT
+    core_pipeline.generate_refs(project, FakeBackend(), STYLE_GUIDE, VARY)
+    assert len(project.load_refs()) == len(FRAMINGS)
 
 
 def test_changing_style_guide_fails(project: Project) -> None:
-    core_pipeline.generate_style_samples(project, FakeBackend(), STYLE_GUIDE)
+    core_pipeline.generate_refs(project, FakeBackend(), STYLE_GUIDE, VARY)
     with pytest.raises(ProjectStateError, match="already has style guide"):
-        core_pipeline.generate_style_samples(project, FakeBackend(), "pixel art")
+        core_pipeline.generate_refs(project, FakeBackend(), "pixel art", VARY)
 
 
-def test_batch_without_style_samples_fails(project: Project) -> None:
-    """Batch must not silently run without style samples (anti-drift rule)."""
-    with pytest.raises(ProjectStateError, match="no style samples"):
+def test_changing_framing_fails(project: Project) -> None:
+    core_pipeline.generate_refs(project, FakeBackend(), STYLE_GUIDE, VARY)
+    with pytest.raises(ProjectStateError, match="already has framing"):
+        core_pipeline.generate_refs(project, FakeBackend(), STYLE_GUIDE, "bust")
+
+
+def test_unknown_framing_fails(project: Project) -> None:
+    with pytest.raises(ProjectStateError, match="unknown framing"):
+        core_pipeline.generate_refs(project, FakeBackend(), STYLE_GUIDE, "torso")
+
+
+def test_batch_without_refs_fails(project: Project) -> None:
+    """Batch must not silently run without refs (anti-drift rule)."""
+    with pytest.raises(ProjectStateError, match="no reference images"):
         core_pipeline.generate_batch(project, FakeBackend())

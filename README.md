@@ -58,7 +58,7 @@ uv run pytest          # tests
 uv run ruff check .    # lint
 uv run ruff format .   # format
 uv run basedpyright    # typecheck
-uv run shot hello      # run the CLI
+uv run shot --help     # run the CLI
 ```
 
 ## License
