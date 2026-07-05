@@ -14,6 +14,37 @@ Run straight from the repo with [uv](https://docs.astral.sh/uv/):
 uvx --from git+https://github.com/bjuergens/tg-sticker-shot shot --help
 ```
 
+## Getting a Gemini API key (Nano Banana)
+
+Image generation uses Google's *Nano Banana* model
+(`gemini-2.5-flash-image`) via the Gemini API. The free tier covers it —
+no credit card needed.
+
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey) and sign
+   in with any Google account.
+2. Accept the terms on first visit, then click **Create API key**
+   (in a new or existing Google Cloud project — either works).
+3. Copy the key (starts with `AIza…`) and export it:
+
+   ```sh
+   export GEMINI_API_KEY="AIza..."
+   ```
+
+Optional: override the model with `GEMINI_MODEL`
+(default: `gemini-2.5-flash-image`).
+
+Verify the key with one cheap real generation:
+
+```sh
+uv run pytest -m gemini_smoke
+```
+
+Notes: free-tier limits are roughly 10 requests/minute and a few hundred
+per day (see [rate limits](https://ai.google.dev/gemini-api/docs/rate-limits));
+on the free tier Google may use your prompts and images to improve its
+models, so don't send anything sensitive. Treat the key like a password —
+never commit it.
+
 ## Development
 
 ```sh
