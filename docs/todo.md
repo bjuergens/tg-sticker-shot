@@ -124,6 +124,7 @@ Deviations so far:
 
 ## Follow-up (after POC)
 
+- [ ] **logging and progress**: long running commands, should lock what they are doing, maybe info printing progress every couple seconds? or just after each phase or something, so user knows it isnt frozen.  
 - [ ] **Post-processing** (`post` stage): transparency (prefer model-native;
       rembg via `[matting]` extra only as fallback — pulls heavy onnxruntime),
       white outline via alpha dilation (opencv-python-headless), resize to
