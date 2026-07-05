@@ -29,6 +29,12 @@ Deviations so far:
   post-processing stage) instead of prompting for transparency directly —
   whether model-native transparency works is part of the open manual smoke
   research below.
+- *Simplified after the Stage 1 review:* `styles.yaml` and the `select` stage
+  are gone. The user supplies a free-text style guide once (`shot style
+  "chibi, bold outlines"`), which drives the sample generation; from then on
+  the reference + sample images carry the style and batch uses a hardcoded
+  prompt with no style text. `emotions.yaml` stays (`core_emotions.py`).
+  Predefined multi-style sampling can return later as UI sugar for the bot.
 
 ## Naming (decided)
 
@@ -59,11 +65,12 @@ Deviations so far:
   `api_gemini.py` (real, via httpx preferred over vendor SDK if practical) and
   `api_fake.py` (returns fixture PNGs — enables full pipeline tests with no
   secrets/mocking).
-- **Styles are data, not code**: `styles.yaml` (prompt templates) and
-  `emotions.yaml` (emotion → emoji + prompt fragment). Chosen style and inputs
-  are stored in the project dir so batch generation is reproducible.
+- **Style is a user-supplied string, emotions are data** *(simplified, see
+  deviations)*: the style guide is free text given to `shot style` and stored
+  in the project dir; `emotions.yaml` (emotion → emoji + prompt fragment)
+  stays a bundled data file.
 - **Consistency strategy**: generate/keep an anchor + style samples; batch
-  generation always references the original refs + chosen style samples, never
+  generation always references the original refs + style samples, never
   chains output→output (prevents drift). Prefer letting refs carry character
   identity over name-dropping IP in prompts (fewer refusals).
 - **Config/secrets** via env vars (pydantic-settings). Never in repo.
@@ -88,14 +95,14 @@ Deviations so far:
 ## Stage 1 — POC (CLI)
 
 - [x] `core_persistence.py`: project-dir handling, save/load refs, samples,
-      results, chosen style, run metadata
+      results, style guide, run metadata
 - [x] Backend Protocol + `api_fake.py` (fixture PNGs) + `api_gemini.py`
-- [x] `styles.yaml` (2–3 starter styles: chibi, pixel art, ...) and
-      `emotions.yaml` (~10–20 emotions with emoji + prompt fragment)
+- [x] `emotions.yaml` (~10–20 emotions with emoji + prompt fragment);
+      styles.yaml dropped in the simplification (see deviations)
 - [x] CLI subcommands mirroring pipeline stages (debuggable in isolation):
   - [x] `ingest` — take reference images into project
-  - [x] `styles` — generate 2–3 sample stickers per style
-  - [x] `select` — record chosen style
+  - [x] `style` — record the free-text style guide + generate sample stickers
+        (replaces the former `styles` + `select` pair)
   - [x] `batch` — generate remaining stickers (refs + style samples as
         references, per-emotion prompts, idempotent: skip existing results)
   - [x] `status` — show project state

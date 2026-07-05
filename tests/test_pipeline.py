@@ -4,9 +4,11 @@ import pytest
 
 from tg_sticker_shot import core_pipeline
 from tg_sticker_shot.api_fake import FIXTURE_PNG, FakeBackend
+from tg_sticker_shot.core_emotions import load_emotions
 from tg_sticker_shot.core_persistence import Project, ProjectStateError, open_project
-from tg_sticker_shot.core_pipeline import SAMPLES_PER_STYLE
-from tg_sticker_shot.core_styles import load_emotions, load_styles
+from tg_sticker_shot.core_pipeline import SAMPLE_COUNT, STYLE_FROM_SAMPLES
+
+STYLE_GUIDE = "chibi, super-deformed, bold outlines"
 
 
 @pytest.fixture
@@ -20,36 +22,35 @@ def project(tmp_path) -> Project:
 
 def test_full_pipeline(project: Project) -> None:
     backend = FakeBackend()
-    styles = load_styles()
     emotions = load_emotions()
 
-    sample_report = core_pipeline.generate_style_samples(project, backend)
-    assert len(sample_report.generated) == len(styles) * SAMPLES_PER_STYLE
+    sample_report = core_pipeline.generate_style_samples(project, backend, STYLE_GUIDE)
+    assert len(sample_report.generated) == SAMPLE_COUNT
     assert sample_report.skipped == []
-    assert project.list_sample_styles() == sorted(styles)
-
-    core_pipeline.select_style(project, "chibi")
+    assert len(project.load_samples()) == SAMPLE_COUNT
+    # Sample prompts carry the user-supplied style guide.
+    assert all(STYLE_GUIDE in prompt for _, prompt in backend.calls)
 
     batch_report = core_pipeline.generate_batch(project, backend)
     assert len(batch_report.generated) == len(emotions)
     for emotion in emotions:
         assert project.has_result(emotion.emoji)
 
-    # Batch prompts carry the chosen style and the emotion fragments.
+    # Batch prompts use the hardcoded style-from-samples text, not the guide.
     batch_prompts = [prompt for _, prompt in backend.calls[-len(emotions) :]]
-    assert all(styles["chibi"].prompt in prompt for prompt in batch_prompts)
+    assert all(STYLE_FROM_SAMPLES in prompt for prompt in batch_prompts)
+    assert all(STYLE_GUIDE not in prompt for prompt in batch_prompts)
     for emotion, prompt in zip(emotions, batch_prompts, strict=True):
         assert emotion.prompt_fragment in prompt
 
-    # Batch references = original refs + chosen style samples, never previous results.
+    # Batch references = original refs + samples, never previous results.
     ref_counts = {count for count, _ in backend.calls[-len(emotions) :]}
-    assert ref_counts == {1 + SAMPLES_PER_STYLE}
+    assert ref_counts == {1 + SAMPLE_COUNT}
 
 
 def test_batch_is_idempotent(project: Project) -> None:
     backend = FakeBackend()
-    core_pipeline.generate_style_samples(project, backend)
-    core_pipeline.select_style(project, "chibi")
+    core_pipeline.generate_style_samples(project, backend, STYLE_GUIDE)
     core_pipeline.generate_batch(project, backend)
 
     calls_before = len(backend.calls)
@@ -59,18 +60,18 @@ def test_batch_is_idempotent(project: Project) -> None:
     assert len(backend.calls) == calls_before
 
 
-def test_styles_stage_is_idempotent(project: Project) -> None:
+def test_style_stage_is_idempotent(project: Project) -> None:
     backend = FakeBackend()
-    core_pipeline.generate_style_samples(project, backend)
+    core_pipeline.generate_style_samples(project, backend, STYLE_GUIDE)
     calls_before = len(backend.calls)
-    report = core_pipeline.generate_style_samples(project, backend)
+    report = core_pipeline.generate_style_samples(project, backend, STYLE_GUIDE)
     assert report.generated == []
-    assert sorted(report.skipped) == sorted(load_styles())
+    assert len(report.skipped) == SAMPLE_COUNT
     assert len(backend.calls) == calls_before
 
 
 def test_style_samples_resume_after_partial_failure(project: Project) -> None:
-    """A backend crash mid-style must not leave the style permanently half-sampled."""
+    """A backend crash mid-run must not leave the project permanently half-sampled."""
 
     class FlakyBackend:
         name = "flaky"
@@ -85,26 +86,19 @@ def test_style_samples_resume_after_partial_failure(project: Project) -> None:
             return FIXTURE_PNG
 
     with pytest.raises(RuntimeError, match="backend down"):
-        core_pipeline.generate_style_samples(project, FlakyBackend())
+        core_pipeline.generate_style_samples(project, FlakyBackend(), STYLE_GUIDE)
 
-    report = core_pipeline.generate_style_samples(project, FakeBackend())
-    assert report.skipped == []  # no style may be treated as complete yet
-    for style_name in load_styles():
-        assert len(project.load_samples(style_name)) == SAMPLES_PER_STYLE
+    core_pipeline.generate_style_samples(project, FakeBackend(), STYLE_GUIDE)
+    assert len(project.load_samples()) == SAMPLE_COUNT
+
+
+def test_changing_style_guide_fails(project: Project) -> None:
+    core_pipeline.generate_style_samples(project, FakeBackend(), STYLE_GUIDE)
+    with pytest.raises(ProjectStateError, match="already has style guide"):
+        core_pipeline.generate_style_samples(project, FakeBackend(), "pixel art")
 
 
 def test_batch_without_style_samples_fails(project: Project) -> None:
     """Batch must not silently run without style samples (anti-drift rule)."""
-    core_pipeline.select_style(project, "chibi")
-    with pytest.raises(ProjectStateError, match="no samples for chosen style"):
-        core_pipeline.generate_batch(project, FakeBackend())
-
-
-def test_select_unknown_style_fails(project: Project) -> None:
-    with pytest.raises(ProjectStateError, match="unknown style"):
-        core_pipeline.select_style(project, "vaporwave")
-
-
-def test_batch_without_selected_style_fails(project: Project) -> None:
-    with pytest.raises(ProjectStateError, match="no style chosen"):
+    with pytest.raises(ProjectStateError, match="no style samples"):
         core_pipeline.generate_batch(project, FakeBackend())

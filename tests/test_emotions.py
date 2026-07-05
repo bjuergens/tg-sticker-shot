@@ -1,12 +1,4 @@
-from tg_sticker_shot.core_styles import load_emotions, load_styles
-
-
-def test_styles_load_and_are_well_formed() -> None:
-    styles = load_styles()
-    assert len(styles) >= 2
-    for name, style in styles.items():
-        assert style.name == name
-        assert style.prompt.strip()
+from tg_sticker_shot.core_emotions import load_emotions
 
 
 def test_emotions_load_and_are_well_formed() -> None:

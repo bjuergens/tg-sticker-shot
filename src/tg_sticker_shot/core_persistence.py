@@ -5,9 +5,9 @@ samples, results, chosen style) and hands out bytes/str, never Path objects.
 
 Project directory layout (flat, prefixed files):
     reference_<n>.png
-    sample_<style>_<n>.png
+    sample_<n>.png
     result_<emoji>.png
-    project.json          (chosen style + run metadata)
+    project.json          (style guide + run metadata)
     .shot.lock            (inter-process lock)
 """
 
@@ -28,7 +28,7 @@ _LOCK_TIMEOUT_SECONDS = 10
 # Strict filename patterns: anything matching the glob prefix but not the full
 # pattern (e.g. a stray reference_backup.png) is an error, not silently ignored.
 _REFERENCE_RE = re.compile(r"reference_(\d+)\.png")
-_SAMPLE_RE = re.compile(r"sample_(.+)_(\d+)\.png")
+_SAMPLE_RE = re.compile(r"sample_(\d+)\.png")
 
 
 class ProjectStateError(Exception):
@@ -38,8 +38,8 @@ class ProjectStateError(Exception):
 @dataclass(frozen=True)
 class ProjectStatus:
     reference_count: int
-    samples_per_style: dict[str, int]
-    chosen_style: str | None
+    sample_count: int
+    style_guide: str | None
     result_emojis: list[str]
 
 
@@ -84,39 +84,27 @@ class Project:
 
     # -- style samples -------------------------------------------------------
 
-    def save_sample(self, style: str, index: int, data: bytes) -> str:
-        name = f"sample_{style}_{index}.png"
+    def save_sample(self, index: int, data: bytes) -> str:
+        name = f"sample_{index}.png"
         (self._dir / name).write_bytes(data)
         return name
 
-    def load_samples(self, style: str) -> list[bytes]:
-        return [
-            path.read_bytes()
-            for sample_style, _, path in self._indexed_samples()
-            if sample_style == style
-        ]
+    def load_samples(self) -> list[bytes]:
+        return [path.read_bytes() for _, path in self._indexed_samples()]
 
-    def has_sample(self, style: str, index: int) -> bool:
-        return (self._dir / f"sample_{style}_{index}.png").is_file()
+    def has_sample(self, index: int) -> bool:
+        return (self._dir / f"sample_{index}.png").is_file()
 
-    def list_sample_styles(self) -> list[str]:
-        return sorted({style for style, _, _ in self._indexed_samples()})
-
-    def _indexed_samples(self) -> list[tuple[str, int, Path]]:
-        """All samples as (style, index, path), sorted by style then index.
-
-        Parses full filenames (never glob-prefix matches) so a style named
-        'chibi' can't pick up samples of a style named 'chibi_v2'.
-        """
-        entries: list[tuple[str, int, Path]] = []
+    def _indexed_samples(self) -> list[tuple[int, Path]]:
+        entries: list[tuple[int, Path]] = []
         for path in self._dir.glob("sample_*.png"):
             match = _SAMPLE_RE.fullmatch(path.name)
             if match is None:
                 raise ProjectStateError(
                     f"unexpected file '{path.name}' in project '{self._dir}' — "
-                    "expected sample_<style>_<n>.png"
+                    "expected sample_<n>.png"
                 )
-            entries.append((match.group(1), int(match.group(2)), path))
+            entries.append((int(match.group(1)), path))
         return sorted(entries)
 
     # -- results -------------------------------------------------------------
@@ -132,18 +120,14 @@ class Project:
     def list_results(self) -> list[str]:
         return sorted(p.stem.removeprefix("result_") for p in self._dir.glob("result_*.png"))
 
-    # -- chosen style / run metadata (project.json) ----------------------------
+    # -- style guide / run metadata (project.json) -----------------------------
 
-    def save_chosen_style(self, style: str) -> None:
-        self._update_project_file(chosen_style=style)
+    def save_style_guide(self, style_guide: str) -> None:
+        self._update_project_file(style_guide=style_guide)
 
-    def load_chosen_style(self) -> str:
-        style = self._read_project_file().get("chosen_style")
-        if not isinstance(style, str):
-            raise ProjectStateError(
-                f"no style chosen in project '{self._dir}' — run `shot select` first"
-            )
-        return style
+    def load_style_guide_or_none(self) -> str | None:
+        style_guide = self._read_project_file().get("style_guide")
+        return style_guide if isinstance(style_guide, str) else None
 
     def record_run(self, stage: str, metadata: dict[str, object]) -> None:
         data = self._read_project_file()
@@ -174,14 +158,10 @@ class Project:
     # -- status / lock ---------------------------------------------------------
 
     def status(self) -> ProjectStatus:
-        chosen = self._read_project_file().get("chosen_style")
-        samples_per_style: dict[str, int] = {}
-        for style, _, _ in self._indexed_samples():
-            samples_per_style[style] = samples_per_style.get(style, 0) + 1
         return ProjectStatus(
             reference_count=len(self._indexed_references()),
-            samples_per_style=samples_per_style,
-            chosen_style=chosen if isinstance(chosen, str) else None,
+            sample_count=len(self._indexed_samples()),
+            style_guide=self.load_style_guide_or_none(),
             result_emojis=self.list_results(),
         )
 

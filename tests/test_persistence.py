@@ -54,33 +54,19 @@ def test_stray_reference_file_fails_loudly(tmp_path) -> None:
 
 def test_samples_roundtrip(tmp_path) -> None:
     project = open_project(str(tmp_path), create=True)
-    assert project.save_sample("chibi", 1, b"a") == "sample_chibi_1.png"
-    project.save_sample("chibi", 2, b"b")
-    project.save_sample("pixel-art", 1, b"c")
+    assert project.save_sample(1, b"a") == "sample_1.png"
+    project.save_sample(2, b"b")
 
-    assert project.load_samples("chibi") == [b"a", b"b"]
-    assert project.load_samples("watercolor") == []
-    assert project.has_sample("chibi", 2)
-    assert not project.has_sample("chibi", 3)
-    assert project.list_sample_styles() == ["chibi", "pixel-art"]
-
-
-def test_samples_of_prefix_styles_stay_separate(tmp_path) -> None:
-    """Style 'chibi' must not pick up samples of a style named 'chibi_v2'."""
-    project = open_project(str(tmp_path), create=True)
-    project.save_sample("chibi", 1, b"a")
-    project.save_sample("chibi_v2", 1, b"X")
-
-    assert project.load_samples("chibi") == [b"a"]
-    assert project.load_samples("chibi_v2") == [b"X"]
-    assert project.status().samples_per_style == {"chibi": 1, "chibi_v2": 1}
+    assert project.load_samples() == [b"a", b"b"]
+    assert project.has_sample(2)
+    assert not project.has_sample(3)
 
 
 def test_stray_sample_file_fails_loudly(tmp_path) -> None:
     project = open_project(str(tmp_path), create=True)
     (tmp_path / "sample_note.png").write_bytes(b"stray")
     with pytest.raises(ProjectStateError, match="sample_note.png"):
-        project.load_samples("chibi")
+        project.load_samples()
 
 
 def test_results_roundtrip(tmp_path) -> None:
@@ -91,20 +77,19 @@ def test_results_roundtrip(tmp_path) -> None:
     assert project.list_results() == ["😂"]
 
 
-def test_chosen_style(tmp_path) -> None:
+def test_style_guide(tmp_path) -> None:
     project = open_project(str(tmp_path), create=True)
-    with pytest.raises(ProjectStateError, match="no style chosen"):
-        project.load_chosen_style()
-    project.save_chosen_style("chibi")
-    assert project.load_chosen_style() == "chibi"
+    assert project.load_style_guide_or_none() is None
+    project.save_style_guide("chibi, bold outlines")
+    assert project.load_style_guide_or_none() == "chibi, bold outlines"
 
 
 def test_record_run_appends(tmp_path) -> None:
     project = open_project(str(tmp_path), create=True)
-    project.record_run("styles", {"backend": "fake"})
+    project.record_run("style", {"backend": "fake"})
     project.record_run("batch", {"backend": "fake"})
     runs = json.loads((tmp_path / "project.json").read_text(encoding="utf-8"))["runs"]
-    assert [run["stage"] for run in runs] == ["styles", "batch"]
+    assert [run["stage"] for run in runs] == ["style", "batch"]
     assert all("timestamp" in run for run in runs)
 
 
@@ -113,14 +98,14 @@ def test_status(tmp_path) -> None:
     source.write_bytes(FIXTURE_PNG)
     project = open_project(str(tmp_path / "proj"), create=True)
     project.add_reference_from_file(str(source))
-    project.save_sample("chibi", 1, b"a")
-    project.save_chosen_style("chibi")
+    project.save_sample(1, b"a")
+    project.save_style_guide("chibi")
     project.save_result("😂", b"img")
 
     state = project.status()
     assert state.reference_count == 1
-    assert state.samples_per_style == {"chibi": 1}
-    assert state.chosen_style == "chibi"
+    assert state.sample_count == 1
+    assert state.style_guide == "chibi"
     assert state.result_emojis == ["😂"]
 
 

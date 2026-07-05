@@ -1,7 +1,7 @@
 """Typer-based CLI. Entry point: `shot` (see [project.scripts] in pyproject.toml).
 
 Subcommands mirror the pipeline stages so each is debuggable in isolation:
-ingest → styles → select → batch → status.
+ingest → style → batch → status.
 """
 
 from enum import StrEnum
@@ -71,33 +71,25 @@ def ingest(
 
 
 @app.command()
-def styles(project: ProjectOpt = ".", backend: BackendOpt = Backend.gemini) -> None:
-    """Generate sample stickers for every style."""
+def style(
+    style_guide: Annotated[
+        str,
+        typer.Argument(help="Free-text style description, e.g. 'chibi, bold outlines'."),
+    ],
+    project: ProjectOpt = ".",
+    backend: BackendOpt = Backend.gemini,
+) -> None:
+    """Generate sample stickers in the given style (records the style guide)."""
     try:
         proj = open_project(project, create=False)
         with proj.lock():
-            report = core_pipeline.generate_style_samples(proj, _make_backend(backend))
+            report = core_pipeline.generate_style_samples(proj, _make_backend(backend), style_guide)
     except (ProjectStateError, BackendError) as error:
         raise _fail(error) from error
     for name in report.generated:
         typer.echo(f"✅ generated {name}")
-    for style_name in report.skipped:
-        typer.echo(f"⚠️ skipped {style_name} (samples exist)")
-
-
-@app.command()
-def select(
-    style: Annotated[str, typer.Argument(help="Style name from styles.yaml.")],
-    project: ProjectOpt = ".",
-) -> None:
-    """Record the chosen style."""
-    try:
-        proj = open_project(project, create=False)
-        with proj.lock():
-            core_pipeline.select_style(proj, style)
-    except ProjectStateError as error:
-        raise _fail(error) from error
-    typer.echo(f"✅ selected style '{style}'")
+    for name in report.skipped:
+        typer.echo(f"⚠️ skipped {name} (exists)")
 
 
 @app.command()
@@ -124,9 +116,8 @@ def status(project: ProjectOpt = ".") -> None:
     except ProjectStateError as error:
         raise _fail(error) from error
     typer.echo(f"references: {state.reference_count}")
-    for style_name, count in state.samples_per_style.items():
-        typer.echo(f"samples[{style_name}]: {count}")
-    typer.echo(f"chosen style: {state.chosen_style or '(none)'}")
+    typer.echo(f"samples: {state.sample_count}")
+    typer.echo(f"style guide: {state.style_guide or '(none)'}")
     typer.echo(f"results: {len(state.result_emojis)} {' '.join(state.result_emojis)}".rstrip())
     missing = core_pipeline.missing_emotions(proj)
     typer.echo(f"missing: {len(missing)} {' '.join(e.emoji for e in missing)}".rstrip())
