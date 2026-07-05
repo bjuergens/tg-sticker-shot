@@ -29,6 +29,8 @@ Python ≥ 3.11, `uv` for everything. Common commands:
 - Config/secrets via env vars (pydantic-settings), never in the repo.
 - Don't worry about migrations for the CLI (project dir layout, file naming,
   project.json schema) — every run starts with empty data.
+- Ignore `REVIEW.md` during implementation; it's for reviewing only. Re-read
+  it every time you start a new round of reviewing.
 
 # General 
 
