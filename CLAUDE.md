@@ -27,6 +27,8 @@ Python ≥ 3.11, `uv` for everything. Common commands:
 - All filesystem access goes through `core_persistence.py`; only that module
   imports `pathlib`.
 - Config/secrets via env vars (pydantic-settings), never in the repo.
+- Don't worry about migrations for the CLI (project dir layout, file naming,
+  project.json schema) — every run starts with empty data.
 
 # General 
 
