@@ -20,6 +20,34 @@ Python ≥ 3.11, `uv` for everything. Common commands:
 - `uv run shot --help` — run the CLI from the checkout
 - `uvx --from git+https://github.com/bjuergens/tg-sticker-shot shot` — run the published tool
 
+### Running the real pipeline (agent test drive)
+
+When the user supplies reference image(s) and a Gemini API key in chat and
+asks to test the pipeline:
+
+- **Key**: pass it inline per command (`GEMINI_API_KEY=... uv run shot ...`).
+  Never write it to a file, the repo, or shell config. Remind the user to
+  rotate it afterward — a key pasted in chat counts as exposed.
+- **Project dir**: use the session scratchpad (e.g. `$SCRATCHPAD/<name>/proj`),
+  never a directory inside the repo — generated images must not end up in git.
+- **Source images**: uploads land as-is; `ingest` stores bytes verbatim and
+  the backend labels everything `image/png`, so convert non-PNG uploads first:
+  `uv run --with pillow python -c "from PIL import Image; Image.open(SRC).convert('RGB').save(DST_PNG)"`
+- **Run** (default params, default model; ~15 paid generations ≈ $0.60):
+  1. `uv run shot ingest <sources...> --project $PROJ`
+  2. `GEMINI_API_KEY=... uv run shot refs "<style guide>" --project $PROJ --backend gemini`
+  3. `GEMINI_API_KEY=... uv run shot batch --project $PROJ --backend gemini`
+  4. `GEMINI_API_KEY=... uv run shot review --project $PROJ --backend gemini`
+  5. `uv run shot status --project $PROJ`
+- **Show the output**: view images yourself with the `Read` tool (spot-check
+  refs before paying for batch); deliver them to the user with `SendUserFile`
+  (refs + all `result_*.png`).
+- Errors abort a stage loudly by design; report the exact error and stop —
+  don't burn more paid calls retrying. `refs`/`batch` are idempotent, so a
+  fixed rerun resumes where it died.
+- Record notable findings in `docs/research/` (see
+  `gemini-smoke-2026-07.md` for the shape).
+
 ## Conventions
 
 - Flat package, prefixed filenames: `frontend_*`, `api_*`, `core_*` in
