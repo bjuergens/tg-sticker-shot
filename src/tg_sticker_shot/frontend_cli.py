@@ -35,10 +35,7 @@ ProjectOpt = Annotated[str, typer.Option("--project", help="Project directory.")
 BackendOpt = Annotated[Backend, typer.Option("--backend", help="Image generation backend.")]
 FramingOpt = Annotated[
     Framing,
-    typer.Option(
-        "--framing",
-        help="Ref framing: bust (2 refs), half (3), full (4), or vary (one of each).",
-    ),
+    typer.Option("--framing", help="Framing of the generated refs; vary = one of each."),
 ]
 
 

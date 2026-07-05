@@ -3,11 +3,9 @@
 Each stage is a plain function over (Project, ImageBackend) so the CLI stays
 thin and the whole pipeline is testable without typer or network access.
 
-Two-stage generation: the refs stage distills the user-provided source images
-plus a free-text style guide into a small set of canonical reference images
-(on-style, white background, fixed framings). The batch stage generates every
-sticker from those refs alone — the sources are never referenced again, so
-the refs fully determine identity, style and framing of the set.
+Two-stage generation: `refs` distills the user-provided sources + style guide
+into canonical reference images; `batch` generates every sticker from those
+refs alone (sources are never referenced again).
 """
 
 from dataclasses import dataclass
@@ -31,9 +29,8 @@ _HALF = (
 )
 _FULL = "Composition: full-body shot — entire figure visible head to toe, bold clear silhouette. "
 
-# Per-framing ref specs: concrete camera/pose language, distinct angles so the
-# ref set demonstrates that identity is constant while pose and framing vary
-# (vague variety requests like "pick a new pose" are ignored by the model).
+# Concrete camera/pose language, distinct angles per framing — the model
+# copies input-image composition and ignores vague "pick a new pose" prompts.
 REF_SPECS: dict[str, list[str]] = {
     "bust": [
         _BUST + "Angle: three-quarter view from the left, head upright, "
@@ -148,16 +145,12 @@ def generate_refs(
 def generate_batch(project: Project, backend: ImageBackend) -> StageReport:
     """Generate result_<emoji>.png per emotion; idempotent (skips existing results).
 
-    Stickers reference the generated refs only, never the sources and never
-    previous results — the refs are the single anchor for identity, style and
-    framing (chaining output→output causes identity drift).
+    Stickers reference the refs only — never sources or previous results
+    (chaining output→output causes identity drift).
     """
     refs = project.load_refs()
     if not refs:
-        raise ProjectStateError(
-            "no reference images in project — run `shot refs` first "
-            "(batch generates every sticker from the refs alone)"
-        )
+        raise ProjectStateError("no reference images in project — run `shot refs` first")
     generated: list[str] = []
     skipped: list[str] = []
     for emotion in load_emotions():

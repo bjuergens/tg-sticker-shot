@@ -3,11 +3,6 @@
 Only this module imports pathlib. The API speaks domain terms (sources,
 refs, results, chosen style) and hands out bytes/str, never Path objects.
 
-Image classes: *sources* are the user-provided input images (ingest);
-*refs* are the generated canonical reference images that carry identity +
-style (refs stage); *results* are the final stickers (batch, generated
-from refs only — sources are never referenced after the refs stage).
-
 Project directory layout (flat, prefixed files):
     source_<n>.png            (user-provided input images)
     ref_<framing>_<n>.png     (generated canonical reference images)
