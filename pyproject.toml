@@ -6,6 +6,10 @@ license = "AGPL-3.0-or-later"
 requires-python = ">=3.11"
 dynamic = ["version"]
 dependencies = [
+    "filelock>=3.29.5",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.14.2",
+    "pyyaml>=6.0.3",
     "typer>=0.12",
 ]
 
@@ -23,6 +27,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.8",
     "basedpyright>=1.21",
+    "pytest-cov>=7.1.0",
 ]
 
 [build-system]
@@ -38,6 +43,20 @@ packages = ["src/tg_sticker_shot"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# gemini_smoke tests hit the real API and cost money; run manually via
+# `uv run pytest -m gemini_smoke` (needs GEMINI_API_KEY).
+addopts = "-m 'not gemini_smoke'"
+markers = ["gemini_smoke: manual smoke tests against the real Gemini API"]
+
+# Coverage is opt-in (pytest --cov), so plain `uv run pytest` stays fast.
+# CI runs with coverage and posts the markdown report to the job summary.
+[tool.coverage.run]
+source_pkgs = ["tg_sticker_shot"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+precision = 1
 
 [tool.ruff]
 line-length = 100

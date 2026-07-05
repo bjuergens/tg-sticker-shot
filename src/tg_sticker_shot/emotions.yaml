@@ -1,0 +1,40 @@
+# Emotions for the sticker set. Emotions are data, not code (see docs/todo.md).
+# name: human-readable id
+# emoji: goes directly into the result filename (result_<emoji>.png)
+# prompt_fragment: merged into the per-sticker generation prompt
+- name: laughing
+  emoji: "😂"
+  prompt_fragment: laughing hard with tears of joy, eyes squeezed shut
+- name: love
+  emoji: "😍"
+  prompt_fragment: completely smitten, heart-shaped eyes, hands clasped
+- name: sad
+  emoji: "😢"
+  prompt_fragment: sad and teary-eyed, a single tear rolling down the cheek
+- name: angry
+  emoji: "😡"
+  prompt_fragment: furious, red-faced, steam coming out of the ears
+- name: thumbs-up
+  emoji: "👍"
+  prompt_fragment: confident approving grin, giving a big thumbs up
+- name: thinking
+  emoji: "🤔"
+  prompt_fragment: pondering with a hand on the chin, one eyebrow raised
+- name: shocked
+  emoji: "😱"
+  prompt_fragment: shocked and screaming, hands on cheeks, wide eyes
+- name: cool
+  emoji: "😎"
+  prompt_fragment: effortlessly cool, wearing sunglasses, smug smile
+- name: sleepy
+  emoji: "😴"
+  prompt_fragment: fast asleep, eyes closed, a little snot bubble, "zzz" above
+- name: party
+  emoji: "🥳"
+  prompt_fragment: celebrating with a party hat, confetti, and a party horn
+- name: wink
+  emoji: "😉"
+  prompt_fragment: playful wink with a cheeky grin
+- name: facepalm
+  emoji: "🤦"
+  prompt_fragment: exasperated facepalm, hand covering the face
