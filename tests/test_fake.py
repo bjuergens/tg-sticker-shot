@@ -1,6 +1,7 @@
 """The fixture PNG must be a genuinely valid PNG — the gemini_smoke test sends
 it to the real API, and future post-processing will decode generated results."""
 
+import json
 import struct
 import zlib
 
@@ -32,3 +33,12 @@ def test_fake_backend_records_calls() -> None:
     backend = FakeBackend()
     assert backend.generate([b"r1", b"r2"], "a prompt") == FIXTURE_PNG
     assert backend.calls == [(2, "a prompt")]
+
+
+def test_fake_backend_critique_queue_then_all_good_default() -> None:
+    backend = FakeBackend()
+    backend.critique_responses = ["preloaded verdict"]
+    assert backend.critique([b"a"], "first?") == "preloaded verdict"
+    default = json.loads(backend.critique([b"a", b"b"], "second?"))
+    assert default["identity"] == 9
+    assert backend.critique_calls == [(1, "first?"), (2, "second?")]

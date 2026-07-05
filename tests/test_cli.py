@@ -3,7 +3,7 @@ from typer.testing import CliRunner
 from tg_sticker_shot import __version__
 from tg_sticker_shot.api_fake import FIXTURE_PNG
 from tg_sticker_shot.core_emotions import load_emotions
-from tg_sticker_shot.frontend_cli import app
+from tg_sticker_shot.frontend_cli import Backend, _make_backend, app
 
 STYLE_GUIDE = "chibi, bold outlines"
 
@@ -48,6 +48,7 @@ def test_full_pipeline_via_cli(tmp_path) -> None:
     assert "sources: 1" in result.output
     assert "refs: 3" in result.output
     assert f"style guide: {STYLE_GUIDE}" in result.output
+    assert "model: fake" in result.output
     assert f"results: {len(load_emotions())}" in result.output
     assert "missing: 0" in result.output
 
@@ -56,6 +57,68 @@ def test_full_pipeline_via_cli(tmp_path) -> None:
     assert result.exit_code == 0
     assert "✅ generated" not in result.output
     assert "⚠️ skipped 😂" in result.output
+
+
+def _project_with_results(tmp_path) -> str:
+    """ingest → refs → batch on the fake backend; returns the project dir."""
+    source = tmp_path / "source.png"
+    source.write_bytes(FIXTURE_PNG)
+    proj = str(tmp_path / "proj")
+    for args in (
+        ["ingest", str(source), "--project", proj],
+        ["refs", STYLE_GUIDE, "--project", proj, "--backend", "fake"],
+        ["batch", "--project", proj, "--backend", "fake"],
+    ):
+        assert runner.invoke(app, args).exit_code == 0
+    return proj
+
+
+def test_redo_via_cli(tmp_path) -> None:
+    proj = _project_with_results(tmp_path)
+    result = runner.invoke(
+        app,
+        [
+            "redo",
+            "😂",
+            "😢",
+            "--project",
+            proj,
+            "--backend",
+            "fake",
+            "--hint",
+            "bigger grin",
+            "--good",
+            "😎",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "✅ generated result_😂.png" in result.output
+    assert "✅ generated result_😢.png" in result.output
+
+
+def test_redo_unknown_emoji_fails_via_cli(tmp_path) -> None:
+    proj = _project_with_results(tmp_path)
+    result = runner.invoke(app, ["redo", "🦄", "--project", proj, "--backend", "fake"])
+    assert result.exit_code == 1
+    assert "unknown emoji" in _all_output(result)
+
+
+def test_review_via_cli(tmp_path) -> None:
+    proj = _project_with_results(tmp_path)
+    result = runner.invoke(app, ["review", "--project", proj, "--backend", "fake"])
+    assert result.exit_code == 0
+    assert "😂 identity 9 emotion 9 quality 9" in result.output
+    assert f"✅ all {len(load_emotions())} stickers pass" in result.output
+
+
+def test_model_alias_resolution(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    monkeypatch.delenv("GEMINI_REVIEW_MODEL", raising=False)
+    assert _make_backend(Backend.gemini, "pro").model_id == "gemini-3-pro-image"
+    assert _make_backend(Backend.gemini, "lite").model_id == "gemini-3.1-flash-lite-image"
+    assert _make_backend(Backend.gemini, "custom-model-id").model_id == "custom-model-id"
+    assert _make_backend(Backend.gemini, None).model_id == "gemini-2.5-flash-image"
 
 
 def test_ingest_missing_file_fails(tmp_path) -> None:

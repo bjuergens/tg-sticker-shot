@@ -1,4 +1,4 @@
-"""Pipeline stages: ingest → refs → batch → status.
+"""Pipeline stages: ingest → refs → batch (→ redo) → status.
 
 Each stage is a plain function over (Project, ImageBackend) so the CLI stays
 thin and the whole pipeline is testable without typer or network access.
@@ -86,6 +86,22 @@ def ingest(project: Project, image_files: list[str]) -> list[str]:
     return [project.add_source_from_file(source) for source in image_files]
 
 
+def check_and_record_model(project: Project, backend: ImageBackend) -> None:
+    """Enforce the per-project model lock: one image model per project.
+
+    Mixing generation models mid-project risks style inconsistency, so a
+    different model on a project that was already generated with another one
+    is an error, not a silent switch — same pattern as style guide/framing.
+    """
+    recorded = project.load_model_or_none()
+    if recorded is not None and recorded != backend.model_id:
+        raise ProjectStateError(
+            f"project already generated with model '{recorded}' — rerun with the same model, "
+            "or start a new project for a different model"
+        )
+    project.save_model(backend.model_id)
+
+
 def ref_specs_for(framing: str) -> list[tuple[str, int, str]]:
     """(framing, index, composition) triples for one refs run."""
     if framing == VARY:
@@ -119,6 +135,7 @@ def generate_refs(
             f"project already has framing '{recorded_framing}' — rerun with the same framing, "
             "or start a new project for a different framing"
         )
+    check_and_record_model(project, backend)
     project.save_style_guide(style_guide)
     project.save_framing(framing)
     generated: list[str] = []
@@ -134,6 +151,7 @@ def generate_refs(
         "refs",
         {
             "backend": backend.name,
+            "model": backend.model_id,
             "style_guide": style_guide,
             "framing": framing,
             "generated": len(generated),
@@ -151,6 +169,7 @@ def generate_batch(project: Project, backend: ImageBackend) -> StageReport:
     refs = project.load_refs()
     if not refs:
         raise ProjectStateError("no reference images in project — run `shot refs` first")
+    check_and_record_model(project, backend)
     generated: list[str] = []
     skipped: list[str] = []
     for emotion in load_emotions():
@@ -159,8 +178,57 @@ def generate_batch(project: Project, backend: ImageBackend) -> StageReport:
             continue
         image = backend.generate(refs, _emotion_prompt(emotion))
         generated.append(project.save_result(emotion.emoji, image))
-    project.record_run("batch", {"backend": backend.name, "generated": len(generated)})
+    project.record_run(
+        "batch",
+        {"backend": backend.name, "model": backend.model_id, "generated": len(generated)},
+    )
     return StageReport(generated=generated, skipped=skipped)
+
+
+def redo_stickers(
+    project: Project,
+    backend: ImageBackend,
+    emojis: list[str],
+    hint: str | None = None,
+    good: list[str] | None = None,
+) -> StageReport:
+    """Force-regenerate the given stickers (existing results are overwritten).
+
+    `hint` appends extra instructions to the standard prompt. `good` names
+    existing results to add as extra reference images — a deliberate, opt-in,
+    one-hop exception to the never-reference-outputs rule (the redone sticker
+    itself is never fed back, so nothing chains).
+    """
+    refs = project.load_refs()
+    if not refs:
+        raise ProjectStateError("no reference images in project — run `shot refs` first")
+    emotions = {emotion.emoji: emotion for emotion in load_emotions()}
+    unknown = [emoji for emoji in emojis if emoji not in emotions]
+    if unknown:
+        raise ProjectStateError(
+            f"unknown emoji(s) {' '.join(unknown)} — expected one of {' '.join(emotions)}"
+        )
+    good = good or []
+    good_refs = [project.load_result(emoji) for emoji in good]  # fails loudly if missing
+    check_and_record_model(project, backend)
+    generated: list[str] = []
+    for emoji in emojis:
+        prompt = _emotion_prompt(emotions[emoji])
+        if hint:
+            prompt = f"{prompt} Additional instructions: {hint}."
+        image = backend.generate(refs + good_refs, prompt)
+        generated.append(project.save_result(emoji, image))
+    project.record_run(
+        "redo",
+        {
+            "backend": backend.name,
+            "model": backend.model_id,
+            "emojis": list(emojis),
+            "hint": hint,
+            "good": list(good),
+        },
+    )
+    return StageReport(generated=generated, skipped=[])
 
 
 def missing_emotions(project: Project) -> list[Emotion]:

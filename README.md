@@ -24,8 +24,11 @@ Gemini API.
    image generation ([pricing](https://ai.google.dev/gemini-api/docs/pricing)).
 3. `export GEMINI_API_KEY="..."`
 
-Optional: `GEMINI_MODEL` overrides the model. Verify the key with one
-paid generation: `uv run pytest -m gemini_smoke`.
+Optional: `GEMINI_MODEL` (or `--model` on the generating commands)
+overrides the model — aliases `flash`, `pro` (Nano Banana Pro), `lite`,
+or any full model ID; the model is locked per project. `GEMINI_REVIEW_MODEL`
+sets the text model `shot review` critiques with (default `gemini-2.5-flash`).
+Verify the key with one paid generation: `uv run pytest -m gemini_smoke`.
 
 ## Development
 

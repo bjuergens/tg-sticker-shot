@@ -15,7 +15,11 @@ from tg_sticker_shot.core_config import Settings
 
 
 def _settings() -> Settings:
-    return Settings(GEMINI_API_KEY="test-key", GEMINI_MODEL="test-model")
+    return Settings(
+        GEMINI_API_KEY="test-key",
+        GEMINI_MODEL="test-model",
+        GEMINI_REVIEW_MODEL="test-review-model",
+    )
 
 
 def _image_response() -> httpx.Response:
@@ -54,6 +58,67 @@ def test_request_shape_and_image_extraction() -> None:
     parts = payload["contents"][0]["parts"]
     assert parts[0]["inline_data"]["data"] == base64.b64encode(FIXTURE_PNG).decode()
     assert parts[-1] == {"text": "a chibi sticker"}
+
+
+def test_model_override_wins_over_settings() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return _image_response()
+
+    backend = GeminiBackend(
+        _settings(), transport=httpx.MockTransport(handler), model="override-model"
+    )
+    assert backend.model_id == "override-model"
+    backend.generate([FIXTURE_PNG], "prompt")
+    assert seen[0].url.path.endswith("/models/override-model:generateContent")
+
+
+def test_critique_uses_review_model_and_extracts_text() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [{"content": {"parts": [{"text": '{"identity"'}, {"text": ": 9}"}]}}]
+            },
+        )
+
+    backend = GeminiBackend(_settings(), transport=httpx.MockTransport(handler))
+    text = backend.critique([FIXTURE_PNG], "rate this sticker")
+
+    assert text == '{"identity": 9}'  # text parts are concatenated
+    request = seen[0]
+    assert request.url.path.endswith("/models/test-review-model:generateContent")
+    payload = json.loads(request.content)
+    parts = payload["contents"][0]["parts"]
+    assert parts[0]["inline_data"]["data"] == base64.b64encode(FIXTURE_PNG).decode()
+    assert parts[-1] == {"text": "rate this sticker"}
+
+
+def test_critique_without_text_part_raises() -> None:
+    transport = httpx.MockTransport(
+        lambda _: httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {"inlineData": {"data": base64.b64encode(FIXTURE_PNG).decode()}}
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+    )
+    backend = GeminiBackend(_settings(), transport=transport)
+    with pytest.raises(BackendError, match="no text part"):
+        backend.critique([FIXTURE_PNG], "prompt")
 
 
 def test_snake_case_inline_data_is_accepted() -> None:

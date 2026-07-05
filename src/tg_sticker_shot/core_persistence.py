@@ -7,7 +7,7 @@ Project directory layout (flat, prefixed files):
     source_<n>.png            (user-provided input images)
     ref_<framing>_<n>.png     (generated canonical reference images)
     result_<emoji>.png
-    project.json              (style guide, framing + run metadata)
+    project.json              (style guide, framing, model + run metadata)
     .shot.lock                (inter-process lock)
 """
 
@@ -43,6 +43,7 @@ class ProjectStatus:
     source_count: int
     ref_count: int
     style_guide: str | None
+    model: str | None
     result_emojis: list[str]
 
 
@@ -119,13 +120,19 @@ class Project:
         (self._dir / name).write_bytes(data)
         return name
 
+    def load_result(self, emoji: str) -> bytes:
+        path = self._dir / f"result_{emoji}.png"
+        if not path.is_file():
+            raise ProjectStateError(f"no result for {emoji} in project '{self._dir}'")
+        return path.read_bytes()
+
     def has_result(self, emoji: str) -> bool:
         return (self._dir / f"result_{emoji}.png").is_file()
 
     def list_results(self) -> list[str]:
         return sorted(p.stem.removeprefix("result_") for p in self._dir.glob("result_*.png"))
 
-    # -- style guide / framing / run metadata (project.json) -------------------
+    # -- style guide / framing / model / run metadata (project.json) -----------
 
     def save_style_guide(self, style_guide: str) -> None:
         self._update_project_file(style_guide=style_guide)
@@ -140,6 +147,13 @@ class Project:
     def load_framing_or_none(self) -> str | None:
         framing = self._read_project_file().get("framing")
         return framing if isinstance(framing, str) else None
+
+    def save_model(self, model: str) -> None:
+        self._update_project_file(model=model)
+
+    def load_model_or_none(self) -> str | None:
+        model = self._read_project_file().get("model")
+        return model if isinstance(model, str) else None
 
     def record_run(self, stage: str, metadata: dict[str, object]) -> None:
         data = self._read_project_file()
@@ -174,6 +188,7 @@ class Project:
             source_count=len(self._indexed_sources()),
             ref_count=len(self._indexed_refs()),
             style_guide=self.load_style_guide_or_none(),
+            model=self.load_model_or_none(),
             result_emojis=self.list_results(),
         )
 

@@ -88,6 +88,7 @@ def test_refs_resume_after_partial_failure(project: Project) -> None:
 
     class FlakyBackend:
         name = "flaky"
+        model_id = "fake"  # match FakeBackend so the resume run passes the model lock
 
         def __init__(self) -> None:
             self.count = 0
@@ -98,11 +99,78 @@ def test_refs_resume_after_partial_failure(project: Project) -> None:
                 raise RuntimeError("backend down")
             return FIXTURE_PNG
 
+        def critique(self, images: list[bytes], prompt: str) -> str:
+            raise NotImplementedError
+
     with pytest.raises(RuntimeError, match="backend down"):
         core_pipeline.generate_refs(project, FlakyBackend(), STYLE_GUIDE, VARY)
 
     core_pipeline.generate_refs(project, FakeBackend(), STYLE_GUIDE, VARY)
     assert len(project.load_refs()) == len(FRAMINGS)
+
+
+def test_redo_overwrites_and_steers(project: Project) -> None:
+    backend = FakeBackend()
+    core_pipeline.generate_refs(project, backend, STYLE_GUIDE, VARY)
+    core_pipeline.generate_batch(project, backend)
+
+    report = core_pipeline.redo_stickers(
+        project, backend, ["😂"], hint="mouth wide open", good=["😎"]
+    )
+    assert report.generated == ["result_😂.png"]
+    assert report.skipped == []
+    assert project.has_result("😂")
+    count, prompt = backend.calls[-1]
+    assert count == len(FRAMINGS) + 1  # the refs plus one good result
+    fragment = next(e.prompt_fragment for e in load_emotions() if e.emoji == "😂")
+    assert fragment in prompt
+    assert "Additional instructions: mouth wide open." in prompt
+
+
+def test_redo_without_hint_keeps_standard_prompt(project: Project) -> None:
+    backend = FakeBackend()
+    core_pipeline.generate_refs(project, backend, STYLE_GUIDE, VARY)
+    core_pipeline.generate_batch(project, backend)
+
+    core_pipeline.redo_stickers(project, backend, ["😂"])
+    count, prompt = backend.calls[-1]
+    assert count == len(FRAMINGS)
+    assert "Additional instructions" not in prompt
+
+
+def test_redo_unknown_emoji_fails(project: Project) -> None:
+    backend = FakeBackend()
+    core_pipeline.generate_refs(project, backend, STYLE_GUIDE, VARY)
+    with pytest.raises(ProjectStateError, match="unknown emoji"):
+        core_pipeline.redo_stickers(project, backend, ["🦄"])
+
+
+def test_redo_good_without_result_fails(project: Project) -> None:
+    backend = FakeBackend()
+    core_pipeline.generate_refs(project, backend, STYLE_GUIDE, VARY)
+    with pytest.raises(ProjectStateError, match="no result"):
+        core_pipeline.redo_stickers(project, backend, ["😂"], good=["😎"])
+
+
+def test_redo_without_refs_fails(project: Project) -> None:
+    with pytest.raises(ProjectStateError, match="no reference images"):
+        core_pipeline.redo_stickers(project, FakeBackend(), ["😂"])
+
+
+def test_changing_model_fails(project: Project) -> None:
+    """The image model is locked per project, like the style guide."""
+    backend_a = FakeBackend()
+    backend_a.model_id = "model-a"
+    core_pipeline.generate_refs(project, backend_a, STYLE_GUIDE, VARY)
+
+    backend_b = FakeBackend()
+    backend_b.model_id = "model-b"
+    with pytest.raises(ProjectStateError, match="already generated with model 'model-a'"):
+        core_pipeline.generate_batch(project, backend_b)
+    with pytest.raises(ProjectStateError, match="already generated with model 'model-a'"):
+        core_pipeline.redo_stickers(project, backend_b, ["😂"])
+
+    core_pipeline.generate_batch(project, backend_a)  # same model is fine
 
 
 def test_changing_style_guide_fails(project: Project) -> None:

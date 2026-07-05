@@ -35,6 +35,18 @@ Deviations so far:
   the reference + sample images carry the style and batch uses a hardcoded
   prompt with no style text. `emotions.yaml` stays (`core_emotions.py`).
   Predefined multi-style sampling can return later as UI sugar for the bot.
+- *Redo / model / review round (2026-07):* `shot redo <emojis...>` regenerates
+  named results, steered by `--hint` (extra prompt text) and `--good <emoji>`
+  (existing good results as extra references — a deliberate, opt-in, one-hop
+  exception to the never-reference-outputs rule; the redone sticker itself is
+  never fed back, so nothing chains). All generating commands take `--model`
+  (aliases `flash`/`pro`/`lite` → concrete Gemini IDs, anything else passes
+  through verbatim); the image model is *locked per project* like the style
+  guide — a different model mid-project is an error, not a silent switch.
+  `shot review` critiques every sticker with a text-out vision model
+  (`GEMINI_REVIEW_MODEL`, not locked — it generates no images) and by default
+  auto-redoes up to `--max-redo` worst offenders via the same redo mechanism,
+  feeding the critique back as the redo hint; `--no-redo` reports only.
 - *Two-stage ref architecture (2026-07):* `shot style` became `shot refs`:
   user uploads are *sources* (`source_<n>.png`), the refs stage distills
   them + the style guide into generated canonical *refs*
@@ -137,11 +149,12 @@ Deviations so far:
         CI-friendly). Skip real-Telegram e2e or make it manual-only.
 - [ ] **Pack/export** for CLI users: manifest + instructions (or bot-assisted
       upload)
-- [ ] **`shot redo <emoji>`** — delete + regenerate one result (workaround
-      today: delete the file, rerun batch). Maybe also for refs.
-- [ ] **Optional AI quality review** — vision model rates the set (identity
-      consistency, emotion legibility at sticker size, artifacts) and
-      suggests re-rolls for `shot redo`.
+- [x] **`shot redo <emojis...>`** — force-regenerate named results, steered by
+      `--hint` and `--good` (see deviations). Redo for *refs* is still open.
+- [x] **Optional AI quality review** — `shot review`: vision model rates each
+      sticker (identity consistency, emotion legibility, technical quality)
+      and auto-redoes the worst offenders through the same mechanism as
+      `shot redo` (`--no-redo` = report only; see deviations).
 - [ ] Consider fal.ai (or second backend) as alternative — should be one new
       `api_*.py` file if the Protocol held up
 - [ ] Consider pivot: emoji filenames → semantic names + manifest.json

@@ -3,6 +3,7 @@
 Enables full pipeline tests (and offline CLI runs) with no secrets and no mocking.
 """
 
+import json
 import struct
 import zlib
 
@@ -26,12 +27,28 @@ FIXTURE_PNG = (
 )
 
 
+# Default critique verdict: everything passes (tests preload critique_responses
+# to simulate bad stickers).
+GOOD_CRITIQUE = json.dumps(
+    {"identity": 9, "emotion": 9, "quality": 9, "issues": "", "redo_hint": ""}
+)
+
+
 class FakeBackend:
     name = "fake"
+    model_id = "fake"
 
     def __init__(self) -> None:
         self.calls: list[tuple[int, str]] = []
+        self.critique_calls: list[tuple[int, str]] = []
+        self.critique_responses: list[str] = []
 
     def generate(self, refs: list[bytes], prompt: str) -> bytes:
         self.calls.append((len(refs), prompt))
         return FIXTURE_PNG
+
+    def critique(self, images: list[bytes], prompt: str) -> str:
+        self.critique_calls.append((len(images), prompt))
+        if self.critique_responses:
+            return self.critique_responses.pop(0)
+        return GOOD_CRITIQUE
