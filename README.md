@@ -17,8 +17,7 @@ uvx --from git+https://github.com/bjuergens/tg-sticker-shot shot --help
 ## Getting a Gemini API key (Nano Banana)
 
 Image generation uses Google's *Nano Banana* model
-(`gemini-2.5-flash-image`) via the Gemini API. The free tier covers it —
-no credit card needed.
+(`gemini-2.5-flash-image`) via the Gemini API.
 
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey) and sign
    in with any Google account.
@@ -39,11 +38,17 @@ Verify the key with one cheap real generation:
 uv run pytest -m gemini_smoke
 ```
 
-Notes: free-tier limits are roughly 10 requests/minute and a few hundred
-per day (see [rate limits](https://ai.google.dev/gemini-api/docs/rate-limits));
-on the free tier Google may use your prompts and images to improve its
-models, so don't send anything sensitive. Treat the key like a password —
-never commit it.
+Notes:
+
+- **Billing:** new projects get a free-tier image quota of effectively
+  zero — the first request 429s with `...FreeTier` quota errors even
+  though text models work. Enable billing on the key's Google Cloud
+  project ([Set up billing in AI Studio](https://aistudio.google.com/apikey))
+  to use Nano Banana; an image costs roughly $0.04
+  ([pricing](https://ai.google.dev/gemini-api/docs/pricing)).
+- On the free tier Google may use your prompts and images to improve its
+  models, so don't send anything sensitive.
+- Treat the key like a password — never commit it.
 
 ## Development
 
